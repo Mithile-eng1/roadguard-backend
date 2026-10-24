@@ -8,6 +8,6 @@ RUN pip install --no-cache-dir torch torchvision --index-url https://download.py
  && pip install --no-cache-dir -r requirements-deploy.txt
 COPY --chown=user . .
 USER user
-ENV PORT=7860
+ENV PORT=7860 OMP_NUM_THREADS=1 MKL_NUM_THREADS=1
 EXPOSE 7860
 CMD ["python", "api_server.py"]
