@@ -1,0 +1,105 @@
+vehicle,type,ground_clearance_mm
+Modified Sports Coupe (Lowered),Modified,70
+Modified Street Racer (Lowered),Modified,75
+Track-Prepped Sports Car (Lowered),Modified,80
+Stanced Sedan (Lowered),Modified,85
+Lowered Hot Hatch,Modified,90
+Lamborghini Huracan,Sports,105
+Ferrari 488,Sports,110
+Porsche 911,Sports,115
+Chevrolet Corvette,Sports,120
+Nissan GT-R,Sports,120
+BMW M4,Sports,125
+Audi R8,Sports,125
+Mazda MX-5,Sports,130
+Toyota GR86,Sports,130
+Ford Mustang,Sports,135
+Maruti Swift,Hatchback,163
+Honda City,Sedan,165
+Maruti Baleno,Hatchback,170
+Hyundai i20,Hatchback,170
+Honda Amaze,Sedan,168
+Tata Tiago,Hatchback,170
+Volkswagen Polo,Hatchback,163
+Skoda Rapid,Sedan,170
+Renault Kwid,Hatchback,184
+Hyundai Aura,Sedan,172
+Maruti Dzire,Sedan,163
+Tata Tigor,Sedan,165
+Ford Figo,Hatchback,168
+Nissan Micra,Hatchback,167
+Honda Jazz,Hatchback,165
+Toyota Glanza,Hatchback,170
+Hyundai Grand i10,Hatchback,170
+Volkswagen Vento,Sedan,163
+Skoda Slavia,Sedan,179
+Honda Civic,Sedan,165
+Toyota Corolla Altis,Sedan,165
+Hyundai Verna,Sedan,170
+Skoda Octavia,Sedan,140
+Volkswagen Virtus,Sedan,179
+Kia Rio,Sedan,150
+Toyota Camry,Sedan,150
+Honda Accord,Sedan,155
+BMW 3 Series,Sedan,145
+Mercedes C-Class,Sedan,150
+Audi A4,Sedan,148
+Toyota Innova,MPV,178
+Maruti Ertiga,MPV,180
+Toyota Innova Crysta,MPV,178
+Kia Carens,MPV,182
+Maruti XL6,MPV,180
+Toyota Rumion,MPV,180
+Renault Triber,MPV,182
+Maruti Eeco,MPV,170
+Hyundai Venue,SUV,195
+Tata Nexon,SUV,209
+Kia Sonet,SUV,190
+Maruti Brezza,SUV,198
+Toyota Urban Cruiser,SUV,198
+Mahindra XUV300,SUV,180
+Hyundai Creta,SUV,190
+Kia Seltos,SUV,190
+Toyota Taisor,SUV,198
+Nissan Magnite,SUV,205
+Renault Kiger,SUV,205
+Skoda Kushaq,SUV,188
+Volkswagen Taigun,SUV,188
+Mahindra Scorpio,SUV,180
+Mahindra Scorpio-N,SUV,190
+Toyota Fortuner,SUV,224
+Ford Endeavour,SUV,225
+Mahindra XUV700,SUV,200
+Tata Harrier,SUV,205
+Tata Safari,SUV,205
+MG Hector,SUV,177
+MG Astor,SUV,180
+Hyundai Alcazar,SUV,200
+Jeep Compass,SUV,178
+Jeep Meridian,SUV,207
+Citroen C5 Aircross,SUV,230
+Skoda Kodiaq,SUV,188
+Volkswagen Tiguan,SUV,188
+BMW X1,SUV,183
+Mercedes GLA,SUV,182
+Audi Q3,SUV,180
+Mahindra Thar,SUV,226
+Force Gurkha,SUV,220
+Suzuki Jimny,SUV,210
+Toyota Land Cruiser,SUV,225
+Land Rover Defender,SUV,291
+Range Rover,SUV,297
+Toyota Hilux,Pickup,220
+Isuzu D-Max,Pickup,235
+Mahindra Bolero,SUV,180
+Mahindra Bolero Neo,SUV,187
+Tata Punch,SUV,187
+Citroen C3,Hatchback,180
+Nissan Kicks,SUV,203
+Honda Elevate,SUV,220
+Toyota Vellfire,MPV,175
+BMW X5,SUV,214
+Mercedes GLE,SUV,210
+Volvo XC90,SUV,220
+Audi Q7,SUV,215
+Porsche Cayenne,SUV,205
