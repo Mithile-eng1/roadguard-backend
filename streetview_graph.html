@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Street View Graph Walker</title>
+</head>
+<body>
+    <div id="status">Loading...</div>
+    <script>
+        // Selenium reads/writes these global variables to communicate with this page.
+        window.lastResult = null;
+        window.lookupInProgress = false;
+
+        function lookupPano(lat, lng) {
+            window.lookupInProgress = true;
+            window.lastResult = null;
+
+            const sv = new google.maps.StreetViewService();
+            sv.getPanorama({ location: { lat: lat, lng: lng }, radius: 50 }, (data, status) => {
+                if (status === "OK") {
+                    // data.links gives the ACTUAL connected panoramas -- the
+                    // same graph the manual arrows in Street View use.
+                    const links = data.links.map(link => ({
+                        pano: link.pano,
+                        heading: link.heading
+                    }));
+
+                    window.lastResult = {
+                        success: true,
+                        pano_id: data.location.pano,
+                        lat: data.location.latLng.lat(),
+                        lng: data.location.latLng.lng(),
+                        links: links
+                    };
+                } else {
+                    window.lastResult = { success: false, status: status };
+                }
+                window.lookupInProgress = false;
+            });
+        }
+
+        function lookupPanoById(panoId) {
+            window.lookupInProgress = true;
+            window.lastResult = null;
+
+            const sv = new google.maps.StreetViewService();
+            sv.getPanorama({ pano: panoId }, (data, status) => {
+                if (status === "OK") {
+                    const links = data.links.map(link => ({
+                        pano: link.pano,
+                        heading: link.heading
+                    }));
+                    window.lastResult = {
+                        success: true,
+                        pano_id: data.location.pano,
+                        lat: data.location.latLng.lat(),
+                        lng: data.location.latLng.lng(),
+                        links: links
+                    };
+                } else {
+                    window.lastResult = { success: false, status: status };
+                }
+                window.lookupInProgress = false;
+            });
+        }
+
+        document.getElementById("status").innerText = "Ready";
+    </script>
+    <!-- Replace YOUR_API_KEY_HERE with your actual Google Maps API key -->
+    <script async src="https://maps.googleapis.com/maps/api/js?key=YOUR_API_KEY_HERE"></script>
+</body>
+</html>
