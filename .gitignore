@@ -1,0 +1,14 @@
+.env
+venv/
+output/
+__pycache__/
+
+# training artefacts & scratch
+runs/
+test_single_image/
+*.cache
+
+# model weights: only the two the backend loads (hazard_detection/src/config.py) are tracked
+hazard_detection/models/*
+!hazard_detection/models/pothole_best.pt
+!hazard_detection/models/speedbreaker_best.pt
