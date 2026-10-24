@@ -1,0 +1,162 @@
+:root {
+  --font-sans: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --font-heading: 'Inter', system-ui, sans-serif;
+
+  /* Color Palette - Light & Eye-friendly */
+  --color-primary: #0f172a;
+  --color-primary-light: #1e293b;
+  --color-accent: #16a34a;
+  --color-accent-hover: #15803d;
+  --color-accent-soft: #dcfce7;
+  --color-accent-text: #166534;
+
+  --color-blue: #3b82f6;
+  --color-blue-soft: #eff6ff;
+  --color-blue-text: #1d4ed8;
+
+  --color-danger: #ef4444;
+  --color-danger-soft: #fef2f2;
+  --color-danger-border: #fecaca;
+  --color-danger-text: #dc2626;
+
+  --color-warning: #f59e0b;
+  --color-warning-soft: #fffbeb;
+  --color-warning-border: #fde68a;
+  --color-warning-text: #d97706;
+
+  --color-low: #16a34a;
+  --color-low-soft: #f0fdf4;
+  --color-low-border: #bbf7d0;
+  --color-low-text: #15803d;
+
+  /* Neutrals */
+  --bg-page: #f6f7f9;
+  --bg-card: #ffffff;
+  --bg-input: #ffffff;
+  --bg-subtle: #f1f5f9;
+  --bg-hover: #f8fafc;
+
+  --border-color: #e2e8f0;
+  --border-focus: #16a34a;
+  
+  --text-main: #0f172a;
+  --text-body: #334155;
+  --text-muted: #64748b;
+  --text-subtle: #94a3b8;
+
+  /* Shadows */
+  --shadow-sm: 0 1px 2px 0 rgba(15, 23, 42, 0.04);
+  --shadow-md: 0 4px 6px -1px rgba(15, 23, 42, 0.06), 0 2px 4px -2px rgba(15, 23, 42, 0.04);
+  --shadow-lg: 0 6px 16px -4px rgba(15, 23, 42, 0.08);
+  --shadow-card: 0 1px 3px rgba(15, 23, 42, 0.05);
+
+  --radius-sm: 6px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+  --radius-full: 9999px;
+
+  --transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Dark mode overrides (optional toggle) */
+[data-theme="dark"] {
+  --color-primary: #f8fafc;
+  --color-primary-light: #e2e8f0;
+  --bg-page: #0b1120;
+  --bg-card: #131d31;
+  --bg-input: #1b2742;
+  --bg-subtle: #1e293b;
+  --bg-hover: #24324f;
+
+  --border-color: #1e293b;
+  --border-focus: #22c55e;
+
+  --text-main: #f8fafc;
+  --text-body: #cbd5e1;
+  --text-muted: #94a3b8;
+  --text-subtle: #64748b;
+
+  --color-accent-soft: #064e3b;
+  --color-accent-text: #4ade80;
+  --color-blue-soft: #1e3a8a;
+  --color-blue-text: #93c5fd;
+  --color-danger-soft: #450a0a;
+  --color-danger-border: #7f1d1d;
+  --color-danger-text: #f87171;
+  --color-warning-soft: #451a03;
+  --color-warning-border: #78350f;
+  --color-warning-text: #fbbf24;
+  --color-low-soft: #052e16;
+  --color-low-border: #14532d;
+  --color-low-text: #4ade80;
+
+  --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.4);
+  --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.5);
+  --shadow-lg: 0 10px 25px -3px rgba(0, 0, 0, 0.6);
+  --shadow-card: 0 4px 20px rgba(0, 0, 0, 0.4);
+}
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  font-family: var(--font-sans);
+  background-color: var(--bg-page);
+  color: var(--text-body);
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  min-height: 100vh;
+}
+
+h1, h2, h3, h4, h5, h6 {
+  font-family: var(--font-heading);
+  color: var(--text-main);
+  font-weight: 650;
+  letter-spacing: -0.01em;
+  line-height: 1.25;
+}
+
+button, input, select {
+  font-family: inherit;
+}
+
+a {
+  text-decoration: none;
+  color: inherit;
+}
+
+/* Custom Scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--bg-page);
+}
+
+::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: var(--radius-full);
+}
+
+[data-theme="dark"] ::-webkit-scrollbar-thumb {
+  background: #334155;
+}
+
+/* Google Maps InfoWindow — follow the app theme (layout stays Google's) */
+.gm-style .gm-style-iw-c {
+  background: var(--bg-card) !important;
+  color: var(--text-body) !important;
+  border-radius: var(--radius-md) !important;
+  box-shadow: var(--shadow-lg) !important;
+  font-family: var(--font-sans) !important;
+  max-width: 300px !important;
+}
+.gm-style .gm-style-iw-tc::after { background: var(--bg-card) !important; }
+.gm-style .gm-style-iw-chr button span { background-color: var(--text-muted) !important; }
+.gm-style .gm-style-iw-c strong { color: var(--text-main); }
