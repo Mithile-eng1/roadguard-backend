@@ -1,0 +1,11 @@
+fastapi
+uvicorn
+pydantic
+ultralytics
+opencv-python-headless
+polyline
+python-dotenv
+requests
+numpy
+pandas
+pillow

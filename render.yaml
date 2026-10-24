@@ -1,0 +1,9 @@
+﻿services:
+  - type: web
+    name: roadguard
+    runtime: docker
+    plan: free
+    healthCheckPath: /api/status
+    envVars:
+      - key: GOOGLE_MAPS_API_KEY
+        sync: false
