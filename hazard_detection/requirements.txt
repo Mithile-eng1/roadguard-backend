@@ -1,0 +1,9 @@
+torch
+torchvision
+ultralytics
+roboflow
+transformers
+pillow
+numpy
+pandas
+matplotlib
