@@ -1,4 +1,4 @@
-"""
+﻿"""
 RoadGuard Backend API Server
 Provides real-time alternative routes evaluation, YOLOv8 hazard detection,
 personalized vehicle risk scoring, and static annotated image serving.
@@ -328,7 +328,7 @@ def job_status(job_id: str):
 
 
 # Production: serve the built React app from the same server (npm run build in frontend/)
-frontend_dist = BASE_DIR / "frontend" / "dist"
+frontend_dist = BASE_DIR / "web"
 if frontend_dist.exists():
     app.mount("/", StaticFiles(directory=str(frontend_dist), html=True), name="frontend")
 
