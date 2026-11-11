@@ -3479,7 +3479,7 @@ button, .nav-link-btn, .filter-tab-btn { touch-action: manipulation; -webkit-tap
     position: sticky; top: 0; z-index: 2; width: 100%; height: 28px; margin-bottom: -4px;
     background: var(--bg-card); border: 0; cursor: pointer;
   }
-  .gm-handle span { width: 40px; height: 5px; border-radius: 3px; background: var(--border-color); }
+  .gm-handle .gm-grip { width: 40px; height: 5px; border-radius: 3px; background: var(--border-color); }
   .gm-map .map-legend-overlay { display: none; }
   /* undo the earlier stacked-page rules that no longer apply */
   .main-content.gm-main { padding: 0; }
@@ -3511,3 +3511,30 @@ button, .nav-link-btn, .filter-tab-btn { touch-action: manipulation; -webkit-tap
 .direction-hazard.sev-Low { border-color: var(--color-low-border); background: var(--color-accent-soft); color: var(--color-accent-text); }
 .direction-hazard svg { flex: 0 0 auto; margin-top: 2px; }
 .direction-hazard em { font-style: normal; font-weight: 600; }
+
+
+/* ==========================================================================
+   18. PHONE LAYOUT: the map comes first
+   - one-row top bar (language, My reports, Admin, log out and theme live in Settings)
+   - the planning panel is a bottom sheet with three heights: a bar (big map), half, full
+   ========================================================================== */
+@media (max-width: 768px) {
+  .navbar-content { flex-wrap: nowrap; gap: 4px; padding-top: 4px; padding-bottom: 4px; min-height: 48px; }
+  .navbar-nav { order: 0; width: auto; margin: 0 0 0 auto; padding: 0; background: none; box-shadow: none; gap: 0; }
+  .navbar-nav .nav-link-btn:first-child { display: none; }          /* Home: the logo does that */
+  .nav-hide-mobile,
+  .navbar-actions .backend-status-chip,
+  .navbar-actions .theme-toggle-btn { display: none !important; }
+  .brand-name { font-size: 1rem; }
+  .navbar-actions { gap: 4px; }
+
+  .gm-panel.sheet-peek { height: 64px; overflow: hidden; }
+  .gm-panel.sheet-half { height: 46dvh; }
+  .gm-panel.sheet-full { height: calc(100dvh - 56px); }
+  .gm-handle { height: 56px; flex-direction: column; gap: 6px; margin-bottom: 0; padding-top: 6px; }
+  .gm-handle-title { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; font-size: .95rem; color: var(--text-heading, inherit); }
+}
+
+/* the results buttons (Report, Drive mode, authorities, Share) share the row two by two */
+.gm-panel .results-actions-group { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; width: 100%; }
+.gm-panel .results-actions-group .btn-action-outline { width: 100%; justify-content: center; text-align: center; padding-left: 8px; padding-right: 8px; }

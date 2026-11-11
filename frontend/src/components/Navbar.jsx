@@ -27,14 +27,14 @@ export default function Navbar({ activeTab, setActiveTab, darkMode, setDarkMode,
         </nav>
 
         <div className="navbar-actions">
-          <select value={lang} onChange={(e) => setLang(e.target.value)} aria-label={t('nav.language')} title={t('nav.language')}
+          <select className="nav-hide-mobile" value={lang} onChange={(e) => setLang(e.target.value)} aria-label={t('nav.language')} title={t('nav.language')}
             style={{ background: 'transparent', color: 'inherit', border: '1px solid var(--border-color)', borderRadius: 8, padding: '4px 6px', minHeight: 32 }}>
             {LANGS.map(([code, name]) => <option key={code} value={code}>{name}</option>)}
           </select>
-          {user && <button type="button" className={`nav-link-btn ${activeTab === 'mine' ? 'active' : ''}`} onClick={() => setActiveTab('mine')}>{t('nav.myReports')}</button>}
-          {user?.isAdmin && <button type="button" className={`nav-link-btn ${activeTab === 'admin' ? 'active' : ''}`} onClick={() => setActiveTab('admin')}>{t('nav.admin')}</button>}
+          {user && <button type="button" className={`nav-link-btn nav-hide-mobile ${activeTab === 'mine' ? 'active' : ''}`} onClick={() => setActiveTab('mine')}>{t('nav.myReports')}</button>}
+          {user?.isAdmin && <button type="button" className={`nav-link-btn nav-hide-mobile ${activeTab === 'admin' ? 'active' : ''}`} onClick={() => setActiveTab('admin')}>{t('nav.admin')}</button>}
           {user
-            ? <button type="button" className="nav-link-btn" onClick={onLogout} title={t('nav.logout')}>{user.name} · {t('nav.logout')}</button>
+            ? <button type="button" className="nav-link-btn nav-hide-mobile" onClick={onLogout} title={t('nav.logout')}>{user.name} · {t('nav.logout')}</button>
             : <button type="button" className={`nav-link-btn ${activeTab === 'login' ? 'active' : ''}`} onClick={() => setActiveTab('login')}>{t('nav.login')}</button>}
           <button type="button" className={`backend-status-chip status-${statusClass}`} onClick={onOpenSettings} title="Open settings">
             <span className="status-dot"></span>

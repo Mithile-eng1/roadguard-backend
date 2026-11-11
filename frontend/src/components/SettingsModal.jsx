@@ -50,7 +50,7 @@ function Choice({ label, value, options, onChange }) {
 
 function SettingsForm({
   onClose, apiConfig, setApiConfig, backendOnline, onTestConnection,
-  prefs, setPref, resetPrefs, darkMode, setDarkMode, auth, onLogout, onOpenMine, onOpenLogin,
+  prefs, setPref, resetPrefs, darkMode, setDarkMode, auth, onLogout, onOpenMine, onOpenAdmin, onOpenLogin,
   historyCount, onClearHistory, canInstall, installed, onInstall,
 }) {
   const { t, lang, setLang } = useT();
@@ -121,6 +121,7 @@ function SettingsForm({
                 </div>
                 <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                   <button type="button" className="btn-secondary btn-sm" onClick={onOpenMine}><FileText size={14} /> {t('nav.myReports')}</button>
+                  {auth.isAdmin && <button type="button" className="btn-secondary btn-sm" onClick={onOpenAdmin}>{t('nav.admin')}</button>}
                   <button type="button" className="btn-secondary btn-sm" onClick={onLogout}><LogOut size={14} /> {t('nav.logout')}</button>
                 </div>
               </>

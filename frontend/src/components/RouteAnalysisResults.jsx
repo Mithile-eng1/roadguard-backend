@@ -85,7 +85,7 @@ export default function RouteAnalysisResults({
                 <div className="alt-route-meta-row">
                   <span>{alt.distance_km} km</span>
                   {alt.duration_min != null && <span>{alt.duration_min} min</span>}
-                  <span>{t('res.hazards', { n: alt.hazard_count })}</span>
+                  <span>{alt.hazard_count === 1 ? t('res.hazard1') : t('res.hazards', { n: alt.hazard_count })}</span>
                   <span className={`alt-risk-pill ${score >= 70 ? 'pill-high' : score >= 45 ? 'pill-med' : 'pill-low'}`}>
                     {t('res.risk', { n: score })}
                   </span>

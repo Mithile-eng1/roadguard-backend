@@ -82,7 +82,7 @@ function App() {
   const [historyItems, setHistoryItems] = useState(() => loadLocal('rg_history', []));
   const [apiConfig, setApiConfig] = useState(() => loadLocal('rg_settings', { backendUrl: '', useLiveApi: true }));
 
-  const { setLang } = useT();
+  const { t, setLang } = useT();
   const [prefs, setPrefs] = useState(loadPrefs);          // text size, voice, warning distance, bump settings
   const setPref = (k, v) => setPrefs((p) => { const n = { ...p, [k]: v }; savePrefs(n); return n; });
   useEffect(() => { document.documentElement.style.fontSize = TEXT_SIZES[prefs.textSize]; }, [prefs.textSize]);
@@ -148,7 +148,7 @@ function App() {
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isPickerOpen, setIsPickerOpen] = useState(false);
   const [copiedLink, setCopiedLink] = useState(false);
-  const [sheetOpen, setSheetOpen] = useState(true); // phone bottom sheet
+  const [sheet, setSheet] = useState('peek'); // phone panel height: peek (just a bar, big map) | half | full
 
   useEffect(() => {
     if (darkMode) document.documentElement.setAttribute('data-theme', 'dark');
@@ -186,6 +186,7 @@ function App() {
     if (!startQuery || !destQuery) return;
 
     setIsAnalyzing(true);
+    setSheet('half'); // phone: show progress and then the result, with the route still visible above
     setFocusedHazard(null);
     setAnalysisError('');
     setProgress({ stage: 0, progress: 0, message: 'Connecting to backend...' });
@@ -260,12 +261,13 @@ function App() {
     setActiveRouteIndex(item.recommendedRouteIndex || 0);
     setFocusedHazard(null);
     setActiveTab('home');
+    setSheet('half');
     setTimeout(() => document.getElementById('results-view')?.scrollIntoView({ behavior: 'smooth' }), 100);
   };
 
   const focusHazardOnMap = (hazard) => {
     setFocusedHazard(hazard);
-    setSheetOpen(false); // phone: drop the sheet so the map is visible
+    setSheet('peek'); // phone: drop the panel so the map is visible
   };
 
   const page = (
@@ -331,8 +333,17 @@ function App() {
                 driving={driveOpen}
               />
             </div>
-            <aside className={`gm-panel ${sheetOpen ? '' : 'collapsed'}`}>
-              <button type="button" className="gm-handle" onClick={() => setSheetOpen(!sheetOpen)} aria-label={sheetOpen ? 'Show map' : 'Show details'} aria-expanded={sheetOpen}><span /></button>
+            <aside className={`gm-panel sheet-${sheet}`}>
+              <button type="button" className="gm-handle" aria-expanded={sheet !== 'peek'}
+                aria-label={routeData ? `${routeData.originAddress || routeData.startLocation} → ${routeData.destinationAddress || routeData.destination}` : t('hero.plan')}
+                onClick={() => setSheet(sheet === 'peek' ? 'half' : sheet === 'half' ? 'full' : 'peek')}>
+                <span className="gm-grip" />
+                <span className="gm-handle-title">
+                  {routeData
+                    ? `${routeData.originAddress || routeData.startLocation} → ${routeData.destinationAddress || routeData.destination} · ${t('res.risk', { n: routeData.overallScore })}`
+                    : t('hero.plan')}
+                </span>
+              </button>
             <HeroSection
               startLocation={startLocation}
               setStartLocation={setStartLocation}
@@ -426,6 +437,7 @@ function App() {
         darkMode={darkMode} setDarkMode={setDarkMode}
         auth={auth} onLogout={() => setAuth(null)}
         onOpenMine={() => { setIsSettingsOpen(false); setActiveTab('mine'); }}
+        onOpenAdmin={() => { setIsSettingsOpen(false); setActiveTab('admin'); }}
         onOpenLogin={() => { setIsSettingsOpen(false); setActiveTab('login'); }}
         historyCount={historyItems.length} onClearHistory={() => setHistoryItems([])}
         canInstall={!!installEvt} installed={installed}

@@ -194,7 +194,8 @@ export default function InteractiveMap({ routeData, focusedHazard, onSelectHazar
           defaultCenter={toLatLng(center)}
           defaultZoom={14}
           gestureHandling="greedy"
-          mapTypeControlOptions={{ position: ControlPosition.TOP_RIGHT }}
+          mapTypeControlOptions={{ position: ControlPosition.TOP_RIGHT, style: window.innerWidth <= 768 ? 2 : 0 }} /* 2 = compact drop-down on phones */
+          fullscreenControl={false}
           onClick={() => setOpenId(null)}
         >
           <MapController polyline={polyline} focusCoords={focusedHazard?.coords} />
