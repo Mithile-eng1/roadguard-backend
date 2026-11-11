@@ -29,6 +29,7 @@ export default function HeroSection({
   customClearance,
   setCustomClearance,
   historyItems,
+  reports,
   onOpenHistoryItem,
   onOpenHistory
 }) {
@@ -75,6 +76,7 @@ export default function HeroSection({
 
         <RecentRoutes
           historyItems={historyItems}
+          reports={reports}
           onOpenHistoryItem={onOpenHistoryItem}
           onPreset={handleSelectPreset}
           onOpenHistory={onOpenHistory}

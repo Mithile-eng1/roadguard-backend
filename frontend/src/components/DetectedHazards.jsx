@@ -50,7 +50,7 @@ export default function DetectedHazards({ hazards, onFocusHazard, focusedHazardI
               <div key={hazard.id} className={`hazard-card-item ${focusedHazardId === hazard.id ? 'hazard-card-focused' : ''}`}>
                 {/* Frame from Street View; the detector already drew the box */}
                 <div className="hazard-image-container">
-                  <img
+                  {hazard.imageUrl && <img
                     src={hazard.imageUrl}
                     alt={`${hazard.type} at ${hazard.locationOffsetKm} km`}
                     className="hazard-image-media"
@@ -59,8 +59,8 @@ export default function DetectedHazards({ hazards, onFocusHazard, focusedHazardI
                       e.target.style.display = 'none';
                       if (e.target.nextSibling) e.target.nextSibling.style.display = 'flex';
                     }}
-                  />
-                  <div className="hazard-image-fallback" style={{ display: 'none' }}>
+                  />}
+                  <div className="hazard-image-fallback" style={{ display: hazard.imageUrl ? 'none' : 'flex' }}>
                     <ImageOff size={22} />
                     <span>Frame unavailable</span>
                   </div>
@@ -74,9 +74,11 @@ export default function DetectedHazards({ hazards, onFocusHazard, focusedHazardI
                   </div>
 
                   <dl className="hazard-meta-grid">
-                    <div className="meta-cell"><dt>Confidence</dt><dd>{hazard.confidence}%</dd></div>
+                    <div className="meta-cell"><dt>{hazard.crowd ? 'Source' : 'Confidence'}</dt><dd>{hazard.crowd ? `${hazard.sightings} users` : `${hazard.confidence}%`}</dd></div>
                     <div className="meta-cell"><dt>Risk</dt><dd className={style.text}>{riskScore} / 100</dd></div>
-                    <div className="meta-cell"><dt>Seen in</dt><dd>{hazard.sightings || 1} {hazard.sightings > 1 ? 'frames' : 'frame'}</dd></div>
+                    {hazard.crowd
+                      ? <div className="meta-cell"><dt>Note</dt><dd>{hazard.notes?.[hazard.notes.length - 1] || '—'}</dd></div>
+                      : <div className="meta-cell"><dt>Seen in</dt><dd>{hazard.sightings || 1} {hazard.sightings > 1 ? 'frames' : 'frame'}</dd></div>}
                   </dl>
 
                   <button type="button" className="btn-view-on-map" onClick={() => onFocusHazard(hazard)}>

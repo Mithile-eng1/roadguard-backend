@@ -3,18 +3,23 @@ import Navbar from './components/Navbar';
 import HeroSection from './components/HeroSection';
 import RouteAnalysisResults from './components/RouteAnalysisResults';
 import DetectedHazards from './components/DetectedHazards';
+import Directions from './components/Directions';
 import AboutView from './components/AboutView';
 import HistoryModal from './components/HistoryModal';
 import ReportModal from './components/ReportModal';
 import SettingsModal from './components/SettingsModal';
 import Footer from './components/Footer';
 import MapPickerModal from './components/MapPickerModal';
+import InteractiveMap from './components/InteractiveMap';
+import ReportPage from './components/ReportPage';
+import AuthPage, { VerifyNotice } from './components/AuthPage';
+import MyReportsPage from './components/MyReportsPage';
+import AdminPage from './components/AdminPage';
 import { APIProvider } from '@vis.gl/react-google-maps';
 
 import { VEHICLE_DATABASE, DEFAULT_VEHICLE } from './data/vehicles';
-import { SAMPLE_ANALYSIS } from './data/sampleRouteData';
 import { buildRouteView } from './services/risk';
-import { analyzeRouteViaBackend, evaluateDynamicAlternativeRoutes, checkBackend, fetchMapsKey } from './services/routeService';
+import { loadAuth, saveAuth, fetchMe, verifyEmail, submitReport, fetchReports, analyzeRouteViaBackend, evaluateDynamicAlternativeRoutes, checkBackend, fetchMapsKey } from './services/routeService';
 import './App.css';
 
 // localStorage is a convenience only: private windows / blocked storage must not break the app
@@ -34,13 +39,14 @@ const urlParams = new URLSearchParams(window.location.search);
 const vehicleFromUrl = VEHICLE_DATABASE.find((v) => v.id === urlParams.get('vehicle'));
 
 function App() {
-  const [activeTab, setActiveTab] = useState('home'); // 'home' | 'about'
+  const [resetToken, setResetToken] = useState(urlParams.get('reset')); // arrived from the emailed link
+  const [activeTab, setActiveTab] = useState(urlParams.get('reset') ? 'login' : 'home'); // 'home' | 'about' | 'login' | 'report'
   const [darkMode, setDarkMode] = useState(() =>
     loadLocal('rg_dark', window.matchMedia?.('(prefers-color-scheme: dark)').matches ?? false));
 
   // Form state
-  const [startLocation, setStartLocation] = useState(urlParams.get('from') || SAMPLE_ANALYSIS.startLocation);
-  const [destination, setDestination] = useState(urlParams.get('to') || SAMPLE_ANALYSIS.destination);
+  const [startLocation, setStartLocation] = useState(urlParams.get('from') || '');
+  const [destination, setDestination] = useState(urlParams.get('to') || '');
   const [baseVehicle, setSelectedVehicle] = useState(vehicleFromUrl || DEFAULT_VEHICLE);
   // Modified / worn cars: the owner measures clearance and it overrides the catalogue value
   const [customClearance, setCustomClearance] = useState(() => {
@@ -53,11 +59,14 @@ function App() {
 
   // Analysis state: raw result (vehicle-agnostic) + which alternative is selected.
   // Everything shown is derived from these + the vehicle, so switching vehicle is instant.
-  const [analysis, setAnalysis] = useState(SAMPLE_ANALYSIS);
-  const [activeRouteIndex, setActiveRouteIndex] = useState(SAMPLE_ANALYSIS.recommendedRouteIndex);
+  const [analysis, setAnalysis] = useState(null); // no route until the user analyses one
+  const [activeRouteIndex, setActiveRouteIndex] = useState(0);
+  const [auth, setAuthState] = useState(loadAuth); // { token, name } | null
+  const setAuth = (a) => { saveAuth(a); setAuthState(a); };
+  const [reports, setReports] = useState([]); // crowdsourced hazards; they raise the risk of routes they lie on
   const routeData = useMemo(
-    () => buildRouteView(analysis, activeRouteIndex, selectedVehicle),
-    [analysis, activeRouteIndex, selectedVehicle]
+    () => buildRouteView(analysis, activeRouteIndex, selectedVehicle, reports),
+    [analysis, activeRouteIndex, selectedVehicle, reports]
   );
 
   const [focusedHazard, setFocusedHazard] = useState(null);
@@ -67,6 +76,38 @@ function App() {
 
   const [historyItems, setHistoryItems] = useState(() => loadLocal('rg_history', []));
   const [apiConfig, setApiConfig] = useState(() => loadLocal('rg_settings', { backendUrl: '', useLiveApi: true }));
+
+  const [notice, setNotice] = useState('');
+  const reloadReports = () => fetchReports(apiConfig.backendUrl).then(setReports);
+
+  // account details (verified / admin) come from the server, never from localStorage
+  const refreshMe = useCallback(() => {
+    if (!auth?.token) return Promise.resolve();
+    return fetchMe(apiConfig.backendUrl, auth.token)
+      .then((m) => setAuthState((a) => a && { ...a, ...m }))
+      .catch((e) => { if (e.status === 401) { saveAuth(null); setAuthState(null); } });
+  }, [auth?.token, apiConfig.backendUrl]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { refreshMe(); }, [refreshMe]);
+
+  // arrived from the emailed verification link
+  useEffect(() => {
+    const v = urlParams.get('verify');
+    if (!v) return;
+    window.history.replaceState({}, '', window.location.pathname);
+    verifyEmail(apiConfig.backendUrl, v)
+      .then(() => { setNotice('Email verified. You can now report hazards.'); refreshMe(); })
+      .catch((e) => setNotice(e.message));
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // "I see this too" / "It's fixed" from a map popup
+  const handleVote = async (c, status) => {
+    if (!auth) { setActiveTab('login'); throw new Error('Log in to vote'); }
+    if (auth.verified === false) { setActiveTab('report'); throw new Error('Verify your email first'); }
+    try {
+      await submitReport(apiConfig.backendUrl, { lat: c.lat, lng: c.lng, category: c.category, status }, auth.token);
+    } catch (e) { if (e.status === 401) setAuth(null); throw e; }
+    await reloadReports();
+  };
   const [backendOnline, setBackendOnline] = useState(null); // null = unknown
   // Google Maps JS key: build-time env wins, else the backend hands out its own key
   const [mapsKey, setMapsKey] = useState(import.meta.env.VITE_GOOGLE_MAPS_API_KEY || '');
@@ -76,6 +117,7 @@ function App() {
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isPickerOpen, setIsPickerOpen] = useState(false);
   const [copiedLink, setCopiedLink] = useState(false);
+  const [sheetOpen, setSheetOpen] = useState(true); // phone bottom sheet
 
   useEffect(() => {
     if (darkMode) document.documentElement.setAttribute('data-theme', 'dark');
@@ -91,11 +133,14 @@ function App() {
   const pingBackend = useCallback(async () => {
     const online = await checkBackend(apiConfig.backendUrl);
     setBackendOnline(online);
+    if (online) fetchReports(apiConfig.backendUrl).then(setReports);
     if (online && !import.meta.env.VITE_GOOGLE_MAPS_API_KEY) {
       const key = await fetchMapsKey(apiConfig.backendUrl);
       if (key) setMapsKey(key);
     }
   }, [apiConfig.backendUrl]);
+
+  useEffect(() => { if (activeTab === 'home') pingBackend(); }, [activeTab]); // refresh after submitting a report
 
   useEffect(() => {
     pingBackend();
@@ -189,26 +234,67 @@ function App() {
 
   const focusHazardOnMap = (hazard) => {
     setFocusedHazard(hazard);
-    document.getElementById('results-view')?.scrollIntoView({ behavior: 'smooth' });
+    setSheetOpen(false); // phone: drop the sheet so the map is visible
   };
 
   const page = (
-    <div className="app-root">
+    <div className={`app-root ${activeTab === 'home' ? 'gm-fixed' : ''}`}>
       <Navbar
         activeTab={activeTab}
         setActiveTab={(tab) => (tab === 'history' ? setIsHistoryModalOpen(true) : setActiveTab(tab))}
         darkMode={darkMode}
         setDarkMode={setDarkMode}
         onOpenSettings={() => setIsSettingsOpen(true)}
+        user={auth}
+        onLogout={() => setAuth(null)}
         backendOnline={backendOnline}
         liveMode={apiConfig.useLiveApi}
       />
 
-      <main className="main-content">
+      {notice && (
+        <div role="status" style={{ position: 'fixed', top: 70, left: '50%', transform: 'translateX(-50%)', zIndex: 60, padding: '10px 16px', borderRadius: 10, background: '#111', color: '#fff', display: 'flex', gap: 12 }}>
+          {notice}<button type="button" onClick={() => setNotice('')} aria-label="Dismiss" style={{ background: 'none', border: 'none', color: '#fff', cursor: 'pointer' }}>×</button>
+        </div>
+      )}
+
+      <main className={`main-content ${activeTab === 'home' ? 'gm-main' : ''}`}>
         {activeTab === 'about' ? (
           <AboutView onBackToHome={() => setActiveTab('home')} />
+        ) : activeTab === 'login' || (['report', 'mine', 'admin'].includes(activeTab) && !auth) ? (
+          <AuthPage backendUrl={apiConfig.backendUrl} onBack={() => setActiveTab('home')}
+            resetToken={resetToken}
+            onResetDone={() => { setResetToken(null); window.history.replaceState({}, '', window.location.pathname); }}
+            onAuth={(a) => { setAuth(a); if (activeTab === 'login') setActiveTab('home'); }}
+            reason={activeTab === 'login' ? '' : 'Log in to continue.'} />
+        ) : activeTab === 'mine' ? (
+          <MyReportsPage backendUrl={apiConfig.backendUrl} token={auth.token} onBack={() => setActiveTab('home')} onChanged={reloadReports} onAuthExpired={() => setAuth(null)} />
+        ) : activeTab === 'admin' ? (
+          auth.isAdmin
+            ? <AdminPage backendUrl={apiConfig.backendUrl} token={auth.token} onBack={() => setActiveTab('home')} onChanged={reloadReports} />
+            : <div style={{ padding: 24 }}>Admins only.</div>
+        ) : activeTab === 'report' && auth.verified === false ? (
+          <VerifyNotice backendUrl={apiConfig.backendUrl} token={auth.token} email={auth.email} onRefresh={refreshMe} onBack={() => setActiveTab('home')} />
+        ) : activeTab === 'report' ? (
+          mapsKey
+            ? <ReportPage token={auth.token} onAuthExpired={() => setAuth(null)} backendUrl={apiConfig.backendUrl} darkMode={darkMode} onBack={() => setActiveTab('home')} initialCenter={routeData?.startCoord ? { lat: routeData.startCoord[0], lng: routeData.startCoord[1] } : undefined} />
+            : <div style={{ padding: 24 }}>Google Maps key not available. Start the backend with GOOGLE_MAPS_API_KEY set.</div>
         ) : (
-          <>
+          <div className="gm-shell">
+            <div className="gm-map">
+              <InteractiveMap
+                routeData={routeData}
+                focusedHazard={focusedHazard}
+                onSelectHazard={(h) => { setFocusedHazard(h); }}
+                onSelectRoute={handleSelectAlternativeRoute}
+                darkMode={darkMode}
+                mapsKey={mapsKey}
+                reports={reports}
+                onOpenReport={() => setActiveTab('report')}
+                onVote={handleVote}
+              />
+            </div>
+            <aside className={`gm-panel ${sheetOpen ? '' : 'collapsed'}`}>
+              <button type="button" className="gm-handle" onClick={() => setSheetOpen(!sheetOpen)} aria-label={sheetOpen ? 'Show map' : 'Show details'} aria-expanded={sheetOpen}><span /></button>
             <HeroSection
               startLocation={startLocation}
               setStartLocation={setStartLocation}
@@ -219,6 +305,7 @@ function App() {
               customClearance={customClearance}
               setCustomClearance={setCustomClearance}
               historyItems={historyItems}
+              reports={reports}
               onOpenHistoryItem={handleSelectHistoryRoute}
               onOpenHistory={() => setIsHistoryModalOpen(true)}
               onAnalyze={handleAnalyzeRoute}
@@ -231,7 +318,7 @@ function App() {
               canPick={!!mapsKey}
             />
 
-            <RouteAnalysisResults
+            {routeData && <RouteAnalysisResults
               routeData={routeData}
               selectedVehicle={selectedVehicle}
               focusedHazard={focusedHazard}
@@ -244,6 +331,12 @@ function App() {
               darkMode={darkMode}
               mapsKey={mapsKey}
               isAnalyzing={isAnalyzing}
+            />}
+
+            <Directions
+              steps={routeData?.alternativeRoutes?.[routeData.activeRouteIndex]?.steps}
+              hazards={routeData?.hazards || []}
+              onFocusHazard={focusHazardOnMap}
             />
 
             <DetectedHazards
@@ -251,11 +344,12 @@ function App() {
               onFocusHazard={focusHazardOnMap}
               focusedHazardId={focusedHazard?.id}
             />
-          </>
+            </aside>
+          </div>
         )}
       </main>
 
-      <Footer onNavHome={() => setActiveTab('home')} onNavAbout={() => setActiveTab('about')} />
+      {activeTab !== 'home' && <Footer onNavHome={() => setActiveTab('home')} onNavAbout={() => setActiveTab('about')} />}
 
       <HistoryModal
         isOpen={isHistoryModalOpen}
@@ -263,6 +357,7 @@ function App() {
         onSelectHistoryRoute={handleSelectHistoryRoute}
         onClear={() => setHistoryItems([])}
         historyItems={historyItems}
+        reports={reports}
       />
 
       <ReportModal

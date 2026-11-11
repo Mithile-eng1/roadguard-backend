@@ -13,6 +13,7 @@ Usage:
 import os
 
 import polyline
+import re
 import requests
 from dotenv import load_dotenv
 
@@ -40,8 +41,17 @@ def get_alternative_routes(origin: str, destination: str) -> list[dict]:
         leg = route["legs"][0]
         # overview_polyline is simplified and cuts corners; step polylines follow the real road
         points = []
+        steps = []
         for step in leg["steps"]:
             points += polyline.decode(step["polyline"]["points"])
+            html = re.sub(r"<div[^>]*>", " - ", step.get("html_instructions", ""))
+            steps.append({
+                "instruction": re.sub(r"\s+", " ", re.sub(r"<[^>]+>", "", html)).strip(),
+                "maneuver": step.get("maneuver", "straight"),
+                "distance_m": step["distance"]["value"],
+                "duration_s": step["duration"]["value"],
+                "location": [step["start_location"]["lat"], step["start_location"]["lng"]],
+            })
         routes.append({
             "polyline": route["overview_polyline"]["points"],
             "points": points,
@@ -51,6 +61,7 @@ def get_alternative_routes(origin: str, destination: str) -> list[dict]:
             "end_address": leg.get("end_address", ""),
             "duration_min": leg["duration"]["value"] / 60,
             "summary": route.get("summary", ""),
+            "steps": steps,
         })
 
     return routes

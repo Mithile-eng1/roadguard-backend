@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Map, AdvancedMarker, InfoWindow, Polyline, ControlPosition, useMap } from '@vis.gl/react-google-maps';
 import { ExternalLink } from 'lucide-react';
+import { clusterReports, CONFIRM_AT } from '../services/risk';
 
 const SEVERITY_COLOR = { High: '#ef4444', Medium: '#f59e0b', Low: '#10b981' };
 const toLatLng = ([lat, lng]) => ({ lat, lng });
@@ -30,7 +31,11 @@ function MapController({ polyline, focusCoords }) {
     if (!map || !polyline || polyline.length < 2) return;
     const bounds = new google.maps.LatLngBounds();
     polyline.forEach(([lat, lng]) => bounds.extend({ lat, lng }));
-    map.fitBounds(bounds, 50);
+    // keep the route clear of the floating panel (left on desktop, bottom sheet on phone)
+    const pad = window.innerWidth > 768
+      ? { left: 450, top: 60, right: 60, bottom: 60 }
+      : { left: 30, top: 60, right: 30, bottom: Math.round(window.innerHeight * 0.5) };
+    map.fitBounds(bounds, pad);
   }, [map, polyline]);
 
   useEffect(() => {
@@ -42,17 +47,36 @@ function MapController({ polyline, focusCoords }) {
   return null;
 }
 
+// Confirm / "fixed" votes on a crowdsourced hazard
+function VoteButtons({ cluster, onVote }) {
+  const [msg, setMsg] = useState('');
+  const [busy, setBusy] = useState(false);
+  const vote = async (status) => {
+    setBusy(true);
+    try { await onVote(cluster, status); setMsg(status === 'present' ? 'Thanks, noted' : 'Thanks, marked as fixed'); } catch (e) { setMsg(e.message); }
+    setBusy(false);
+  };
+  return (
+    <div style={{ marginTop: 8 }}>
+      <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+        <button type="button" disabled={busy} onClick={() => vote('present')}>👍 I see this too</button>
+        <button type="button" disabled={busy} onClick={() => vote('gone')}>✔ It's fixed</button>
+      </div>
+      {msg && <div style={{ marginTop: 4, fontSize: 12 }}>{msg}</div>}
+    </div>
+  );
+}
+
 function streetViewLink([lat, lng]) {
   return `https://www.google.com/maps?q=${lat},${lng}&layer=c&cbll=${lat},${lng}`;
 }
 
-export default function InteractiveMap({ routeData, focusedHazard, onSelectHazard, onSelectRoute, darkMode, mapsKey }) {
+export default function InteractiveMap({ routeData, focusedHazard, onSelectHazard, onSelectRoute, darkMode, mapsKey, reports = [], onOpenReport, onVote }) {
   const [openId, setOpenId] = useState(null); // hazard id | 'start' | 'end'
 
   // "View on Map" from the hazard grid opens that hazard's popup
   useEffect(() => { setOpenId(focusedHazard?.id ?? null); }, [focusedHazard]);
 
-  if (!routeData) return null;
 
   if (!mapsKey) {
     return (
@@ -65,16 +89,20 @@ export default function InteractiveMap({ routeData, focusedHazard, onSelectHazar
     );
   }
 
-  const center = routeData.startCoord || [10.9015, 76.8990];
-  const polyline = routeData.routePolyline?.length
+  const center = routeData?.startCoord || [10.9015, 76.8990];
+  const polyline = !routeData ? [] : routeData.routePolyline?.length
     ? routeData.routePolyline
     : (routeData.startCoord && routeData.endCoord ? [routeData.startCoord, routeData.endCoord] : [center]);
-  const alternatives = (routeData.alternativeRoutes || []).filter((_, i) => i !== routeData.activeRouteIndex);
-  const openHazard = routeData.hazards?.find((h) => h.id === openId);
+  const alternatives = (routeData?.alternativeRoutes || []).filter((_, i) => i !== routeData.activeRouteIndex);
+  const openHazard = routeData?.hazards?.find((h) => h.id === openId);
+  const clusters = clusterReports(reports);
+  const onRoute = new Set((routeData?.hazards || []).filter((h) => h.crowd).map((h) => h.clusterId));
+  const openCluster = clusters.find((c) => `c_${c.id}` === openId);
+  const clusterOf = (h) => clusters.find((c) => c.id === h.clusterId);
 
   return (
     <div className="map-view-wrapper">
-      <div className="map-legend-overlay">
+      {routeData && <div className="map-legend-overlay">
         <div className="legend-item"><span className="legend-dot start-dot"></span><span>Start</span></div>
         <div className="legend-item"><span className="legend-dot end-dot"></span><span>End</span></div>
         <div className="legend-item"><span className="legend-triangle high-triangle">▲</span><span>High Risk</span></div>
@@ -83,7 +111,12 @@ export default function InteractiveMap({ routeData, focusedHazard, onSelectHazar
         {alternatives.length > 0 && (
           <div className="legend-item"><span className="legend-alt-line"></span><span>Other routes</span></div>
         )}
-      </div>
+      </div>}
+
+      <button type="button" onClick={onOpenReport}
+        style={{ position: 'absolute', top: 56, right: 12, zIndex: 5, padding: '8px 12px', borderRadius: 8, border: 'none', cursor: 'pointer', background: '#fff', color: '#111', boxShadow: '0 1px 4px rgba(0,0,0,.3)' }}>
+        ⚠ Report hazard
+      </button>
 
       {/* colorScheme is init-only, hence the key. DEMO_MAP_ID is Google's public id
           (needed for AdvancedMarker); create your own Map ID in Cloud Console for custom styling. */}
@@ -94,7 +127,7 @@ export default function InteractiveMap({ routeData, focusedHazard, onSelectHazar
           colorScheme={darkMode ? 'DARK' : 'LIGHT'}
           defaultCenter={toLatLng(center)}
           defaultZoom={14}
-          gestureHandling="cooperative"
+          gestureHandling="greedy"
           mapTypeControlOptions={{ position: ControlPosition.TOP_RIGHT }}
           onClick={() => setOpenId(null)}
         >
@@ -115,21 +148,21 @@ export default function InteractiveMap({ routeData, focusedHazard, onSelectHazar
           ))}
 
           {/* Active route: glow + core stroke */}
-          <Polyline path={polyline.map(toLatLng)} strokeColor="#1d4ed8" strokeOpacity={0.5} strokeWeight={9} zIndex={2} clickable={false} />
-          <Polyline path={polyline.map(toLatLng)} strokeColor="#3b82f6" strokeOpacity={1} strokeWeight={4.5} zIndex={3} clickable={false} />
+          {polyline.length > 1 && <><Polyline path={polyline.map(toLatLng)} strokeColor="#1d4ed8" strokeOpacity={0.5} strokeWeight={9} zIndex={2} clickable={false} />
+          <Polyline path={polyline.map(toLatLng)} strokeColor="#3b82f6" strokeOpacity={1} strokeWeight={4.5} zIndex={3} clickable={false} /></>}
 
-          {routeData.startCoord && (
+          {routeData?.startCoord && (
             <AdvancedMarker position={toLatLng(routeData.startCoord)} title="Start" onClick={() => setOpenId('start')} zIndex={10}>
               <Pin type="start" />
             </AdvancedMarker>
           )}
-          {routeData.endCoord && (
+          {routeData?.endCoord && (
             <AdvancedMarker position={toLatLng(routeData.endCoord)} title="Destination" onClick={() => setOpenId('end')} zIndex={10}>
               <Pin type="end" />
             </AdvancedMarker>
           )}
 
-          {routeData.hazards?.map((haz) => (
+          {routeData?.hazards?.map((haz) => (
             <AdvancedMarker
               key={haz.id}
               position={toLatLng(haz.coords)}
@@ -141,12 +174,35 @@ export default function InteractiveMap({ routeData, focusedHazard, onSelectHazar
             </AdvancedMarker>
           ))}
 
-          {openId === 'start' && routeData.startCoord && (
+          {clusters.filter((c) => !c.fixed && c.count > 0 && !onRoute.has(c.id)).map((c) => (
+            <AdvancedMarker key={c.id} position={{ lat: c.lat, lng: c.lng }} zIndex={c.confirmed ? 18 : 12}
+              onClick={() => setOpenId(`c_${c.id}`)}
+              title={c.confirmed
+                ? `Confirmed ${c.category} · reported by ${c.count} users (counts toward route risk)`
+                : `Unconfirmed ${c.category} · ${c.count}/${CONFIRM_AT} reports`}>
+              <div className="custom-pin-badge" style={{ background: '#8b5cf6', opacity: c.confirmed ? 1 : 0.45 }}><PinIcon type="hazard" /></div>
+            </AdvancedMarker>
+          ))}
+
+          {openCluster && (
+            <InfoWindow position={{ lat: openCluster.lat, lng: openCluster.lng }} pixelOffset={[0, -30]} onCloseClick={() => setOpenId(null)}>
+              <div className="map-popup-card">
+                {openCluster.photo && <img src={openCluster.photo} alt="" className="map-popup-image" onError={(e) => { e.target.style.display = 'none'; }} />}
+                <strong>{openCluster.category === 'pothole' ? 'Pothole' : 'Speed breaker'} · reported by users</strong>
+                <div className="popup-meta">
+                  {openCluster.confirmed ? `Confirmed by ${openCluster.count} users` : `${openCluster.count} of ${CONFIRM_AT} reports needed to confirm`}
+                </div>
+                {openCluster.notes.map((n, i) => <div key={i} className="popup-location">“{n}”</div>)}
+                <VoteButtons cluster={openCluster} onVote={onVote} />
+              </div>
+            </InfoWindow>
+          )}
+          {openId === 'start' && routeData?.startCoord && (
             <InfoWindow position={toLatLng(routeData.startCoord)} pixelOffset={[0, -30]} onCloseClick={() => setOpenId(null)}>
               <div className="map-popup-card"><strong>🟢 Start Point</strong><div>{routeData.startLocation}</div></div>
             </InfoWindow>
           )}
-          {openId === 'end' && routeData.endCoord && (
+          {openId === 'end' && routeData?.endCoord && (
             <InfoWindow position={toLatLng(routeData.endCoord)} pixelOffset={[0, -30]} onCloseClick={() => setOpenId(null)}>
               <div className="map-popup-card"><strong>🔴 Destination</strong><div>{routeData.destination}</div></div>
             </InfoWindow>
@@ -162,9 +218,14 @@ export default function InteractiveMap({ routeData, focusedHazard, onSelectHazar
                 </div>
                 <strong>{openHazard.type}</strong>
                 <div className="popup-meta">
-                  <span>Confidence: {openHazard.confidence}%</span> • <span>Risk: {openHazard.adjustedRisk ?? openHazard.baseRisk}/100</span>
+                  <span>{openHazard.crowd ? 'Crowd-reported' : `Confidence: ${openHazard.confidence}%`}</span> • <span>Risk: {openHazard.adjustedRisk ?? openHazard.baseRisk}/100</span>
                 </div>
                 <div className="popup-location">{openHazard.locationOffsetKm} km along route</div>
+                {openHazard.crowd && <>
+                  <div className="popup-location">Reported by {openHazard.sightings} users</div>
+                  {openHazard.notes?.map((n, i) => <div key={i} className="popup-location">“{n}”</div>)}
+                  {clusterOf(openHazard) && <VoteButtons cluster={clusterOf(openHazard)} onVote={onVote} />}
+                </>}
                 <a className="popup-link" href={streetViewLink(openHazard.coords)} target="_blank" rel="noreferrer">
                   <ExternalLink size={12} /> Open in Google Street View
                 </a>

@@ -1,4 +1,4 @@
-﻿// Evaluated Alternative Routes & Real Dataset Hazards for RoadGuard
+// Evaluated Alternative Routes & Real Dataset Hazards for RoadGuard
 
 export const DEFAULT_ALTERNATIVE_ROUTES = [
   {
@@ -38,7 +38,7 @@ export const DEFAULT_ALTERNATIVE_ROUTES = [
         baseRisk: 78,
         locationOffsetKm: 0.6,
         coords: [11.0182, 76.9641],
-        imageUrl: `${import.meta.env.BASE_URL}samples/route_0_hazards/potholes/step_0019_wp0020.jpg`,
+        imageUrl: '/samples/route_0_hazards/potholes/step_0019_wp0020.jpg',
         description: 'Deep road crater with jagged asphalt edges detected by YOLOv8 model.'
       },
       {
@@ -50,7 +50,7 @@ export const DEFAULT_ALTERNATIVE_ROUTES = [
         baseRisk: 54,
         locationOffsetKm: 1.1,
         coords: [11.0185, 76.9595],
-        imageUrl: `${import.meta.env.BASE_URL}samples/route_0_hazards/speedbreakers/step_0009_wp0010.jpg`,
+        imageUrl: '/samples/route_0_hazards/speedbreakers/step_0009_wp0010.jpg',
         description: 'Striped elevated speed breaker hump with moderate asphalt wear.'
       },
       {
@@ -62,7 +62,7 @@ export const DEFAULT_ALTERNATIVE_ROUTES = [
         baseRisk: 74,
         locationOffsetKm: 1.8,
         coords: [11.0172, 76.9560],
-        imageUrl: `${import.meta.env.BASE_URL}samples/route_0_hazards/potholes/step_0052_wp0053.jpg`,
+        imageUrl: '/samples/route_0_hazards/potholes/step_0052_wp0053.jpg',
         description: 'Depression in right lane with fractured bitumen.'
       },
       {
@@ -74,7 +74,7 @@ export const DEFAULT_ALTERNATIVE_ROUTES = [
         baseRisk: 52,
         locationOffsetKm: 2.3,
         coords: [11.0150, 76.9530],
-        imageUrl: `${import.meta.env.BASE_URL}samples/route_0_hazards/speedbreakers/step_0031_wp0032.jpg`,
+        imageUrl: '/samples/route_0_hazards/speedbreakers/step_0031_wp0032.jpg',
         description: 'Standard traffic calming table top hump.'
       },
       {
@@ -86,7 +86,7 @@ export const DEFAULT_ALTERNATIVE_ROUTES = [
         baseRisk: 34,
         locationOffsetKm: 2.8,
         coords: [11.0125, 76.9505],
-        imageUrl: `${import.meta.env.BASE_URL}samples/route_0_hazards/speedbreakers/step_0041_wp0042.jpg`,
+        imageUrl: '/samples/route_0_hazards/speedbreakers/step_0041_wp0042.jpg',
         description: 'Gentle slope road hump with high visibility.'
       }
     ]
@@ -125,7 +125,7 @@ export const DEFAULT_ALTERNATIVE_ROUTES = [
         baseRisk: 52,
         locationOffsetKm: 1.4,
         coords: [11.0125, 76.9620],
-        imageUrl: `${import.meta.env.BASE_URL}samples/route_1_hazards/speedbreakers/step_0009_wp0010.jpg`,
+        imageUrl: '/samples/route_1_hazards/speedbreakers/step_0009_wp0010.jpg',
         description: 'Single elevated speed hump along commercial shopping stretch.'
       }
     ]
@@ -164,7 +164,7 @@ export const DEFAULT_ALTERNATIVE_ROUTES = [
         baseRisk: 30,
         locationOffsetKm: 0.7,
         coords: [11.0150, 76.9610],
-        imageUrl: `${import.meta.env.BASE_URL}hazards/speedbreaker_2.jpg`,
+        imageUrl: '/hazards/speedbreaker_2.jpg',
         description: 'Gentle residential speed bump.'
       },
       {
@@ -176,7 +176,7 @@ export const DEFAULT_ALTERNATIVE_ROUTES = [
         baseRisk: 50,
         locationOffsetKm: 1.5,
         coords: [11.0135, 76.9570],
-        imageUrl: `${import.meta.env.BASE_URL}hazards/pothole_3.jpg`,
+        imageUrl: '/hazards/pothole_3.jpg',
         description: 'Mild shallow surface pothole near curb.'
       },
       {
@@ -188,7 +188,7 @@ export const DEFAULT_ALTERNATIVE_ROUTES = [
         baseRisk: 32,
         locationOffsetKm: 2.1,
         coords: [11.0115, 76.9525],
-        imageUrl: `${import.meta.env.BASE_URL}hazards/speedbreaker_3.jpg`,
+        imageUrl: '/hazards/speedbreaker_3.jpg',
         description: 'Low-profile crossing hump.'
       },
       {
@@ -200,7 +200,7 @@ export const DEFAULT_ALTERNATIVE_ROUTES = [
         baseRisk: 33,
         locationOffsetKm: 2.7,
         coords: [11.0095, 76.9495],
-        imageUrl: `${import.meta.env.BASE_URL}hazards/speedbreaker_4.jpg`,
+        imageUrl: '/hazards/speedbreaker_4.jpg',
         description: 'School zone marked speed breaker.'
       }
     ]

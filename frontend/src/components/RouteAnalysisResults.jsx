@@ -1,6 +1,5 @@
 import React from 'react';
 import { FileText, Share2, ArrowRight, Check } from 'lucide-react';
-import InteractiveMap from './InteractiveMap';
 import RiskScoreCard from './RiskScoreCard';
 import VehicleProfileCard from './VehicleProfileCard';
 import { displayPlace } from '../services/geo';
@@ -21,7 +20,7 @@ export default function RouteAnalysisResults({
 }) {
   const alternativeRoutes = routeData.alternativeRoutes || [];
   const meta = [
-    routeData.isSample ? 'Example' : routeData.isDemo ? 'Demo mode' : `Analyzed ${routeData.timestamp}`,
+    routeData.isSample ? 'Example' : routeData.isDemo ? 'Demo mode' : `${routeData.cached ? 'Saved result from' : 'Analyzed'} ${routeData.timestamp}`,
     alternativeRoutes.length > 1 ? `${alternativeRoutes.length} routes compared` : null,
     routeData.routeSummary ? `via ${routeData.routeSummary}` : null,
   ].filter(Boolean).join(' · ');
@@ -82,17 +81,12 @@ export default function RouteAnalysisResults({
         </div>
       )}
 
+      <p className="results-caveat" role="note">
+        <strong>Heads-up, not a guarantee.</strong> The detector misses some hazards, so "no hazards found"
+        does not mean the road is smooth. Check each flagged frame yourself and drive to the conditions.
+      </p>
+
       <div className="results-dashboard-grid">
-        <div className="dashboard-map-panel">
-          <InteractiveMap
-            routeData={routeData}
-            focusedHazard={focusedHazard}
-            onSelectHazard={onSelectHazard}
-            onSelectRoute={onSelectAlternativeRoute}
-            darkMode={darkMode}
-            mapsKey={mapsKey}
-          />
-        </div>
         <div className="dashboard-stats-panel">
           <RiskScoreCard routeData={routeData} />
           <VehicleProfileCard vehicle={selectedVehicle} />

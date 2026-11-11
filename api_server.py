@@ -1,4 +1,4 @@
-﻿"""
+"""
 RoadGuard Backend API Server
 Provides real-time alternative routes evaluation, YOLOv8 hazard detection,
 personalized vehicle risk scoring, and static annotated image serving.
@@ -11,7 +11,15 @@ Flow:
     GET  /api/jobs/{job_id}   -> {"status", "stage", "progress", "message", "result"|"error"}
 """
 
+import base64
+import hashlib
+import hmac
+import json
 import os
+import re
+import secrets
+import smtplib
+from email.message import EmailMessage
 import sys
 import threading
 import time
@@ -20,7 +28,7 @@ from pathlib import Path
 from typing import Optional
 
 import uvicorn
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
@@ -36,7 +44,7 @@ from image_collection_retry import download_pano_chain_with_retries
 sys.path.append(str(Path(__file__).resolve().parent / "hazard_detection"))
 from src.hazard_detector import detect_hazards
 from src.vehicle import get_vehicle, list_vehicles
-from src import risk_engine
+from src import config as hz_config, risk_engine
 
 app = FastAPI(title="RoadGuard Backend API", version="2.1")
 
@@ -67,6 +75,7 @@ class RouteRequest(BaseModel):
     meters: int = 10      # Street View panos sit ~10 m apart; this sees every one of them
     conf: float = 0.25
     merge_m: int = 25     # same-type detections closer than this (consecutive frames) are one hazard
+    refresh: bool = False  # True = ignore the stored result and re-run the detector
 
 
 @app.get("/api/status")
@@ -86,7 +95,397 @@ def config():
     return {"google_maps_key": os.getenv("GOOGLE_MAPS_API_KEY", "")}
 
 
-def analyze_routes(req: RouteRequest, report) -> dict:
+# ---- Accounts: email + password, scrypt hashes, HMAC-signed 30-day tokens (stdlib only) ----
+# Accounts, reports and photos live here. In Docker point ROADGUARD_DATA at a mounted volume so
+# they survive a container restart (the image itself is replaced on every deploy).
+DATA_DIR = Path(os.getenv("ROADGUARD_DATA", BASE_DIR / "data"))
+USERS_FILE = DATA_DIR / "users.json"
+USERS_LOCK = threading.Lock()  # ponytail: JSON file + lock; move to sqlite/postgres for real traffic
+FAILS: dict[str, list] = {}    # email -> [count, first_ts]; 5 bad logins per 5 min
+
+
+def _secret() -> bytes:
+    if os.getenv("ROADGUARD_SECRET"):
+        return os.environ["ROADGUARD_SECRET"].encode()
+    f = DATA_DIR / "auth_secret.key"
+    f.parent.mkdir(parents=True, exist_ok=True)
+    if not f.exists():
+        f.write_text(secrets.token_hex(32))
+    return f.read_text().strip().encode()
+
+
+AUTH_SECRET = _secret()
+
+
+def _hash(pw: str, salt: bytes) -> str:
+    return hashlib.scrypt(pw.encode(), salt=salt, n=2 ** 14, r=8, p=1).hex()
+
+
+def _users() -> dict:
+    try:
+        return json.loads(USERS_FILE.read_text(encoding="utf-8"))
+    except (FileNotFoundError, ValueError):
+        return {}
+
+
+def _sign(body: str) -> str:
+    return hmac.new(AUTH_SECRET, body.encode(), hashlib.sha256).hexdigest()
+
+
+def make_token(email: str) -> str:
+    body = base64.urlsafe_b64encode(json.dumps({"e": email, "x": int(time.time()) + 30 * 86400}).encode()).decode()
+    return f"{body}.{_sign(body)}"
+
+
+def current_user(request: Request) -> str:
+    """Email from a valid Bearer token, else 401."""
+    try:
+        body, sig = request.headers.get("authorization", "").removeprefix("Bearer ").split(".")
+        data = json.loads(base64.urlsafe_b64decode(body))
+        if hmac.compare_digest(sig, _sign(body)) and data["x"] > time.time() and data["e"] in _users():
+            return data["e"]
+    except (ValueError, KeyError):
+        pass
+    raise HTTPException(401, "Please log in")
+
+
+class Signup(BaseModel):
+    name: str
+    email: str
+    password: str
+
+
+class Login(BaseModel):
+    email: str
+    password: str
+
+
+@app.post("/api/signup")
+def signup(b: Signup):
+    email, name = b.email.strip().lower(), b.name.strip()[:50]
+    if not re.fullmatch(r"[^@\s]+@[^@\s]+\.[^@\s]+", email) or not name:
+        raise HTTPException(400, "Enter your name and a valid email")
+    if len(b.password) < 8:
+        raise HTTPException(400, "Password must be at least 8 characters")
+    salt = secrets.token_bytes(16)
+    with USERS_LOCK:
+        users = _users()
+        if email in users:
+            raise HTTPException(409, "An account with this email already exists")
+        users[email] = {"name": name, "salt": salt.hex(), "hash": _hash(b.password, salt), "verified": False}
+        USERS_FILE.parent.mkdir(parents=True, exist_ok=True)
+        USERS_FILE.write_text(json.dumps(users), encoding="utf-8")
+    send_verification(email)
+    return {"token": make_token(email), "name": name}
+
+
+@app.post("/api/login")
+def login(b: Login):
+    email = b.email.strip().lower()
+    n, t0 = FAILS.get(email, [0, time.time()])
+    if time.time() - t0 > 300:
+        n, t0 = 0, time.time()
+    if n >= 5:
+        raise HTTPException(429, "Too many attempts, try again in a few minutes")
+    u = _users().get(email)
+    ok = bool(u) and hmac.compare_digest(_hash(b.password, bytes.fromhex(u["salt"])), u["hash"])
+    if not ok:
+        FAILS[email] = [n + 1, t0]
+        raise HTTPException(401, "Wrong email or password")
+    FAILS.pop(email, None)
+    return {"token": make_token(email), "name": u["name"]}
+
+
+# ---- Password reset by email. Stateless 1 h token bound to the current password hash, so it
+# dies as soon as it is used. Mail: set SMTP_HOST, SMTP_USER, SMTP_PASS (+ optional SMTP_PORT,
+# SMTP_FROM) and APP_URL (where the React app lives). Unset = the link is printed to this console.
+APP_URL = os.getenv("APP_URL", "http://localhost:5173").rstrip("/")
+_LAST_FORGOT: dict[str, float] = {}
+
+
+def make_reset_token(email: str, pw_hash: str) -> str:
+    body = base64.urlsafe_b64encode(json.dumps({"e": email, "x": int(time.time()) + 3600, "f": pw_hash[:16]}).encode()).decode()
+    return f"{body}.{_sign('reset.' + body)}"
+
+
+def send_mail(email: str, subject: str, text: str, link: str) -> None:
+    if not os.getenv("SMTP_HOST"):
+        print(f"[mail] SMTP not configured. '{subject}' link for {email}: {link}", flush=True)
+        return
+    msg = EmailMessage()
+    msg["Subject"] = subject
+    msg["From"] = os.getenv("SMTP_FROM") or os.environ["SMTP_USER"]
+    msg["To"] = email
+    msg.set_content(f"{text}\n\n{link}\n\nIf you did not ask for this, ignore this email.")
+    try:
+        with smtplib.SMTP(os.environ["SMTP_HOST"], int(os.getenv("SMTP_PORT", "587")), timeout=15) as srv:
+            srv.starttls()
+            srv.login(os.environ["SMTP_USER"], os.environ["SMTP_PASS"])
+            srv.send_message(msg)
+    except Exception as e:  # runs in a thread: log, never crash the request
+        print(f"[mail] sending failed: {e!r}", flush=True)
+
+
+class Forgot(BaseModel):
+    email: str
+
+
+class Reset(BaseModel):
+    token: str
+    password: str
+
+
+@app.post("/api/forgot")
+def forgot(b: Forgot):
+    """Same answer whether or not the email exists, so it can't be used to probe accounts."""
+    email = b.email.strip().lower()
+    u = _users().get(email)
+    if u and time.time() - _LAST_FORGOT.get(email, 0) > 60:
+        _LAST_FORGOT[email] = time.time()
+        link = f"{APP_URL}/?reset={make_reset_token(email, u['hash'])}"
+        threading.Thread(target=send_mail, args=(email, "Reset your RoadGuard password",
+                         "Use this link to choose a new password (valid for 1 hour):", link), daemon=True).start()
+    return {"ok": True, "message": "If that email has an account, a reset link is on its way."}
+
+
+@app.post("/api/reset")
+def reset(b: Reset):
+    if len(b.password) < 8:
+        raise HTTPException(400, "Password must be at least 8 characters")
+    try:
+        body, sig = b.token.split(".")
+        data = json.loads(base64.urlsafe_b64decode(body))
+        valid = hmac.compare_digest(sig, _sign("reset." + body)) and data["x"] > time.time()
+    except (ValueError, KeyError):
+        valid = False
+    with USERS_LOCK:
+        users = _users()
+        u = users.get(data["e"]) if valid else None
+        if not u or u["hash"][:16] != data["f"]:
+            raise HTTPException(400, "This reset link is invalid or has expired")
+        salt = secrets.token_bytes(16)
+        u.update(salt=salt.hex(), hash=_hash(b.password, salt))
+        USERS_FILE.write_text(json.dumps(users), encoding="utf-8")
+    FAILS.pop(data["e"], None)
+    return {"ok": True}
+
+
+# ---- Email verification: a verified email is required to report or vote, which makes
+# fake "3 different users" confirmations cost real mailboxes. Accounts made before this
+# existed have no "verified" key and count as verified. ----
+ADMINS = {e.strip().lower() for e in os.getenv("ADMIN_EMAILS", "").split(",") if e.strip()}
+_LAST_VERIFY: dict[str, float] = {}
+
+
+def send_verification(email: str) -> None:
+    body = base64.urlsafe_b64encode(json.dumps({"e": email, "x": int(time.time()) + 3 * 86400}).encode()).decode()
+    link = f"{APP_URL}/?verify={body}.{_sign('verify.' + body)}"
+    threading.Thread(target=send_mail, args=(email, "Verify your RoadGuard email",
+                     "Confirm your email so you can report road hazards (valid for 3 days):", link), daemon=True).start()
+
+
+class Token(BaseModel):
+    token: str
+
+
+@app.post("/api/verify")
+def verify(b: Token):
+    try:
+        body, sig = b.token.split(".")
+        data = json.loads(base64.urlsafe_b64decode(body))
+        valid = hmac.compare_digest(sig, _sign("verify." + body)) and data["x"] > time.time()
+    except (ValueError, KeyError):
+        valid = False
+    with USERS_LOCK:
+        users = _users()
+        if not valid or data["e"] not in users:
+            raise HTTPException(400, "This verification link is invalid or has expired")
+        users[data["e"]]["verified"] = True
+        USERS_FILE.write_text(json.dumps(users), encoding="utf-8")
+    return {"ok": True}
+
+
+@app.post("/api/resend-verification")
+def resend_verification(request: Request):
+    email = current_user(request)
+    if _users()[email].get("verified", True):
+        return {"ok": True, "message": "Your email is already verified"}
+    if time.time() - _LAST_VERIFY.get(email, 0) < 60:
+        raise HTTPException(429, "Please wait a minute before asking again")
+    _LAST_VERIFY[email] = time.time()
+    send_verification(email)
+    return {"ok": True, "message": "Verification email sent"}
+
+
+@app.get("/api/me")
+def me(request: Request):
+    email = current_user(request)
+    u = _users()[email]
+    return {"name": u["name"], "email": email, "verified": u.get("verified", True), "isAdmin": email in ADMINS}
+
+
+def require_verified(request: Request) -> str:
+    email = current_user(request)
+    u = _users()[email]
+    if u.get("banned"):
+        raise HTTPException(403, "Your account has been blocked")
+    if not u.get("verified", True):
+        raise HTTPException(403, "Verify your email first (check your inbox)")
+    return email
+
+
+def require_admin(request: Request) -> str:
+    email = current_user(request)
+    if email not in ADMINS:
+        raise HTTPException(403, "Admins only")
+    return email
+
+
+def uid_of(email: str) -> str:
+    return _sign(email)[:10]
+
+
+# ---- Crowdsourced hazard reports: verified users, stored in one JSON file. status "present"
+# = I see this hazard, "gone" = it has been fixed. Reports expire after REPORT_TTL_DAYS. ----
+REPORTS_FILE = DATA_DIR / "crowd_reports.json"
+REPORTS_LOCK = threading.Lock()  # ponytail: JSON file + lock; move to sqlite if reports pass ~10k
+_LAST_REPORT: dict[str, float] = {}  # email -> time, crude spam brake
+REPORT_TTL_DAYS = int(os.getenv("REPORT_TTL_DAYS", "60"))
+PHOTO_DIR = DATA_DIR / "report_photos"
+PHOTO_DIR.mkdir(parents=True, exist_ok=True)
+app.mount("/report-photos", StaticFiles(directory=str(PHOTO_DIR)), name="report-photos")
+
+
+class HazardReport(BaseModel):
+    lat: float
+    lng: float
+    category: str  # pothole | speedbreaker
+    note: str = ""
+    status: str = "present"  # present | gone
+    photo: str = ""  # optional JPEG as base64 (the app shrinks it first)
+
+
+def _load_reports() -> list:
+    try:
+        return json.loads(REPORTS_FILE.read_text(encoding="utf-8"))
+    except (FileNotFoundError, ValueError):
+        return []
+
+
+def _save_reports(reports: list) -> None:
+    REPORTS_FILE.parent.mkdir(parents=True, exist_ok=True)
+    REPORTS_FILE.write_text(json.dumps(reports), encoding="utf-8")
+
+
+def _save_photo(rid: str, data: str) -> str:
+    try:
+        raw = base64.b64decode(data.split(",", 1)[-1], validate=True)
+    except ValueError:
+        raise HTTPException(400, "Bad photo")
+    if len(raw) > 500_000 or not raw.startswith(b"\xff\xd8\xff"):  # JPEG only, 500 KB max
+        raise HTTPException(400, "Photo must be a JPEG under 500 KB")
+    (PHOTO_DIR / f"{rid}.jpg").write_bytes(raw)
+    return f"/report-photos/{rid}.jpg"
+
+
+@app.get("/api/reports")
+def list_reports():
+    """Public list: fresh reports from accounts that are not blocked."""
+    banned = {uid_of(e) for e, u in _users().items() if u.get("banned")}
+    cutoff = time.time() - REPORT_TTL_DAYS * 86400
+    return [r for r in _load_reports() if r["ts"] >= cutoff and r.get("uid") not in banned]
+
+
+@app.post("/api/reports")
+def add_report(r: HazardReport, request: Request):
+    if not (-90 <= r.lat <= 90 and -180 <= r.lng <= 180) or r.category not in ("pothole", "speedbreaker") \
+            or r.status not in ("present", "gone"):
+        raise HTTPException(400, "Invalid report")
+    email = require_verified(request)
+    if time.time() - _LAST_REPORT.get(email, 0) < 10:
+        raise HTTPException(429, "Please wait a few seconds between reports")
+    _LAST_REPORT[email] = time.time()
+    rid = uuid.uuid4().hex[:10]
+    rep = {"id": rid, "uid": uid_of(email), "lat": r.lat, "lng": r.lng, "category": r.category,
+           "status": r.status, "note": r.note.strip()[:200], "ts": int(time.time()),
+           "photo": _save_photo(rid, r.photo) if r.photo else ""}
+    with REPORTS_LOCK:
+        reports = _load_reports()
+        reports.append(rep)
+        _save_reports(reports)
+    return rep
+
+
+@app.get("/api/my-reports")
+def my_reports(request: Request):
+    uid = uid_of(current_user(request))
+    return [r for r in _load_reports() if r.get("uid") == uid]
+
+
+@app.delete("/api/reports/{rid}")
+def delete_report(rid: str, request: Request):
+    email = current_user(request)
+    with REPORTS_LOCK:
+        reports = _load_reports()
+        rep = next((r for r in reports if r["id"] == rid), None)
+        if not rep:
+            raise HTTPException(404, "Report not found")
+        if rep.get("uid") != uid_of(email) and email not in ADMINS:
+            raise HTTPException(403, "You can only delete your own reports")
+        _save_reports([r for r in reports if r["id"] != rid])
+    if rep.get("photo"):
+        (PHOTO_DIR / f"{rid}.jpg").unlink(missing_ok=True)
+    return {"ok": True}
+
+
+# ---- Admin (accounts listed in ADMIN_EMAILS) ----
+@app.get("/api/admin/reports")
+def admin_reports(request: Request):
+    require_admin(request)
+    who = {uid_of(e): e for e in _users()}
+    return [{**r, "email": who.get(r.get("uid"), "(deleted user)")} for r in _load_reports()]
+
+
+@app.get("/api/admin/users")
+def admin_users(request: Request):
+    require_admin(request)
+    counts: dict[str, int] = {}
+    for r in _load_reports():
+        counts[r.get("uid")] = counts.get(r.get("uid"), 0) + 1
+    return [{"email": e, "name": u["name"], "verified": u.get("verified", True), "banned": bool(u.get("banned")),
+             "isAdmin": e in ADMINS, "reports": counts.get(uid_of(e), 0)} for e, u in _users().items()]
+
+
+class Ban(BaseModel):
+    email: str
+    banned: bool
+
+
+@app.post("/api/admin/ban")
+def admin_ban(b: Ban, request: Request):
+    require_admin(request)
+    email = b.email.strip().lower()
+    if email in ADMINS:
+        raise HTTPException(400, "Admins cannot be blocked")
+    with USERS_LOCK:
+        users = _users()
+        if email not in users:
+            raise HTTPException(404, "No such user")
+        users[email]["banned"] = b.banned
+        USERS_FILE.write_text(json.dumps(users), encoding="utf-8")
+    return {"ok": True}
+
+
+def cache_key(req: RouteRequest) -> str:
+    """Same places + sampling + conf + model weights = same result. Vehicle is not part of it:
+    the frontend rescales risk per vehicle from baseRisk."""
+    w = [hz_config.POTHOLE_WEIGHTS, hz_config.SPEEDBREAKER_WEIGHTS]
+    parts = [req.origin.strip().lower(), req.destination.strip().lower(), req.meters, req.conf,
+             *(int(Path(x).stat().st_mtime) if Path(x).exists() else 0 for x in w)]
+    return hashlib.sha1(json.dumps(parts).encode()).hexdigest()[:16]
+
+
+def analyze_routes(req: RouteRequest, report, key: str) -> dict:
     """report(stage, message, progress_pct) is called as work advances.
     stage: 0 directions, 1 street view, 2 yolo, 3 scoring."""
     t_start = time.time()
@@ -126,7 +525,7 @@ def analyze_routes(req: RouteRequest, report) -> dict:
         # and a small radius stops snapping onto a parallel street
         pano_chain = build_pano_chain(waypoints_as_dicts, radius=30)
 
-        images_dir = f"output/route_{i}_images"
+        images_dir = f"output/{key}/route_{i}_images"
         images = download_pano_chain_with_retries(
             pano_chain, output_dir=images_dir,
             on_progress=lambda k, n: report(
@@ -134,7 +533,7 @@ def analyze_routes(req: RouteRequest, report) -> dict:
                 slice_start + slice_len * 0.45 * (k / max(n, 1))),
         )
 
-        hazard_output_dir = Path(f"output/route_{i}_hazards")
+        hazard_output_dir = Path(f"output/{key}/route_{i}_hazards")
         (hazard_output_dir / "potholes").mkdir(parents=True, exist_ok=True)
         (hazard_output_dir / "speedbreakers").mkdir(parents=True, exist_ok=True)
 
@@ -215,7 +614,7 @@ def analyze_routes(req: RouteRequest, report) -> dict:
                     "locationOffsetKm": offset_km,
                     "coords": [wp_lat, wp_lng],
                     "bbox": det["bbox"],
-                    "imageUrl": f"/output/route_{i}_hazards/{sub_dir}/{out_name}",
+                    "imageUrl": f"/output/{key}/route_{i}_hazards/{sub_dir}/{out_name}",
                     "description": f"{h_type.capitalize()} detected at {int(conf*100)}% confidence."
                 })
 
@@ -248,6 +647,7 @@ def analyze_routes(req: RouteRequest, report) -> dict:
             "start_coord": route_polyline[0],
             "end_coord": route_polyline[-1],
             "polyline": route_polyline,
+            "steps": r.get("steps", []),
             "hazards": hazards_list
         })
 
@@ -301,8 +701,26 @@ def _run_job(job_id: str, req: RouteRequest):
         job.update(stage=stage, message=message, progress=round(progress))
         print(f"[{job_id}] {progress:5.1f}% {message}")
 
+    key = cache_key(req)
+    saved = output_dir_path / key / "result.json"
     try:
-        job["result"] = analyze_routes(req, report)
+        if saved.exists() and not req.refresh:
+            cached = json.loads(saved.read_text(encoding="utf-8"))
+            if any("steps" not in r for r in cached["routes"]):  # saved before directions existed: one cheap Directions call
+                try:
+                    fresh = get_alternative_routes(req.origin, req.destination)
+                    for r in cached["routes"]:
+                        r["steps"] = fresh[r["route_index"]]["steps"] if r["route_index"] < len(fresh) else []
+                    saved.write_text(json.dumps(cached), encoding="utf-8")
+                except Exception:
+                    pass  # directions are optional; the saved analysis still loads
+            job["result"] = {**cached, "cached": True}
+            job.update(status="done", progress=100, message="Loaded saved result")
+            return
+        result = analyze_routes(req, report, key)
+        saved.parent.mkdir(parents=True, exist_ok=True)
+        saved.write_text(json.dumps(result), encoding="utf-8")  # ponytail: local disk (mount a volume); Azure Blob if you need multi-VM
+        job["result"] = result
         job.update(status="done", progress=100, message="Analysis complete")
     except HTTPException as e:
         job.update(status="error", error=e.detail)
@@ -328,7 +746,7 @@ def job_status(job_id: str):
 
 
 # Production: serve the built React app from the same server (npm run build in frontend/)
-frontend_dist = BASE_DIR / "web"
+frontend_dist = BASE_DIR / "web" if (BASE_DIR / "web").exists() else BASE_DIR / "frontend" / "dist"
 if frontend_dist.exists():
     app.mount("/", StaticFiles(directory=str(frontend_dist), html=True), name="frontend")
 

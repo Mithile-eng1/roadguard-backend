@@ -3363,3 +3363,151 @@ input:checked + .slider:before {
 .recent-meta { display: flex; align-items: center; gap: 10px; font-size: 0.78rem; color: var(--text-muted); white-space: nowrap; }
 .recent-sub { grid-column: 1 / -1; font-size: 0.74rem; color: var(--text-subtle); }
 .recent-foot { font-size: 0.74rem; color: var(--text-subtle); margin-top: 6px; }
+
+/* Keyboard focus: visible ring for every interactive element */
+:where(a, button, input, select, textarea, [tabindex]):focus-visible {
+  outline: 2px solid var(--color-blue);
+  outline-offset: 2px;
+}
+
+.results-caveat {
+  margin: 0 0 16px;
+  padding: 10px 14px;
+  font-size: 0.875rem;
+  line-height: 1.5;
+  color: var(--color-warning-text);
+  background: var(--color-warning-soft);
+  border: 1px solid var(--color-warning-border);
+  border-radius: var(--radius-md);
+}
+[data-theme="dark"] .results-caveat {
+  color: #fcd34d;
+  background: rgba(245, 158, 11, 0.12);
+  border-color: rgba(245, 158, 11, 0.35);
+}
+
+
+/* ==========================================================================
+   15. PHONE POLISH — one column, big tap targets, no sideways scroll
+   ========================================================================== */
+html, body { max-width: 100%; overflow-x: hidden; }
+html { -webkit-text-size-adjust: 100%; }
+button, .nav-link-btn, .filter-tab-btn { touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
+
+@media (max-width: 768px) {
+  /* 16px inputs stop iOS from zooming the page on focus; 44px = minimum finger target */
+  .form-input, .form-select, .measure-input, input, select { font-size: 16px; min-height: 48px; }
+  button, .btn-analyze-route, .btn-action-primary, .btn-action-outline, .btn-secondary,
+  .btn-pick-on-map, .preset-pill-btn, .preset-option-btn, .filter-tab-btn, .alt-route-card-btn,
+  .theme-toggle-btn, .action-icon-btn, .modal-close-btn, .swap-btn-text { min-height: 44px; min-width: 44px; }
+  .btn-analyze-route { width: 100%; justify-content: center; font-size: 1rem; min-height: 52px; }
+  .input-row-with-btn { flex-wrap: wrap; }
+  .input-row-with-btn > * { flex: 1 1 100%; }
+
+  /* Everything stacks */
+  .hero-intro { padding: 18px 16px; }
+  .hero-title { font-size: 1.6rem; }
+  .results-header-row, .card-header-row, .modal-actions-footer, .modal-actions-inline { flex-wrap: wrap; gap: 8px; }
+  .alt-routes-grid, .hazard-cards-grid, .report-grid-cell, .hazard-meta-grid { grid-template-columns: 1fr; }
+  .dashboard-map-panel { height: 50vh; min-height: 280px; }
+  .hazards-filter-tabs { overflow-x: auto; flex-wrap: nowrap; -webkit-overflow-scrolling: touch; padding-bottom: 4px; }
+  .hazards-filter-tabs > * { flex: 0 0 auto; }
+
+  /* Tables scroll inside their own box, never the page */
+  .report-data-table, .report-table-grid { display: block; overflow-x: auto; max-width: 100%; }
+
+  /* Modals become full-screen sheets */
+  .modal-backdrop-overlay { padding: 0; align-items: stretch; }
+  .modal-dialog-box, .modal-dialog-box.modal-lg {
+    width: 100%; max-width: 100%; height: 100dvh; max-height: 100dvh; border-radius: 0; margin: 0;
+  }
+  .modal-body-scrollable { overflow-y: auto; -webkit-overflow-scrolling: touch; }
+
+  /* Respect iPhone notch / home bar */
+  .navbar-content, .main-content { padding-left: max(16px, env(safe-area-inset-left)); padding-right: max(16px, env(safe-area-inset-right)); }
+  .main-content { padding-bottom: max(16px, env(safe-area-inset-bottom)); }
+}
+
+@media (max-width: 380px) {
+  .hero-title { font-size: 1.4rem; }
+  .brand-name { font-size: 0.95rem; }
+  .nav-link-btn { padding: 6px 8px; font-size: 0.78rem; }
+}
+
+
+/* ==========================================================================
+   16. GOOGLE-MAPS-STYLE HOME — full-screen map, floating panel / phone bottom sheet
+   ========================================================================== */
+.app-root.gm-fixed { height: 100dvh; min-height: 0; overflow: hidden; }
+.main-content.gm-main { padding: 0; gap: 0; max-width: none; min-height: 0; position: relative; }
+.gm-shell { position: relative; flex: 1; width: 100%; height: 100%; min-height: 0; }
+.gm-map { position: absolute; inset: 0; }
+.gm-map .map-view-wrapper, .gm-map .google-road-map { width: 100%; height: 100%; }
+.gm-map .map-legend-overlay { top: auto; left: auto; right: 12px; bottom: 28px; flex-direction: column; align-items: flex-start; }
+
+.gm-panel {
+  position: absolute; z-index: 5; top: 12px; left: 12px; bottom: 12px; width: 410px;
+  overflow-y: auto; overscroll-behavior: contain;
+  background: var(--bg-card); border: 1px solid var(--border-color);
+  border-radius: 16px; box-shadow: var(--shadow-lg);
+  display: flex; flex-direction: column; gap: 16px; padding: 16px;
+}
+.gm-handle { display: none; }
+
+/* Panel contents: single column, no marketing intro */
+.gm-panel .hero-section { padding: 0; }
+.gm-panel .hero-grid { display: flex; flex-direction: column-reverse; gap: 14px; }
+.gm-panel .hero-intro, .gm-panel .how-list { display: none; }
+.gm-panel .hero-left-col, .gm-panel .hero-right-card-wrapper { width: 100%; }
+.gm-panel .plan-route-card { box-shadow: none; border: none; padding: 0; background: none; }
+.gm-panel .route-results-section { gap: 14px; }
+.gm-panel .results-header-row { flex-direction: column; align-items: stretch; }
+.gm-panel .results-dashboard-grid { grid-template-columns: 1fr; }
+.gm-panel .alt-routes-grid, .gm-panel .hazard-cards-grid { grid-template-columns: 1fr; }
+.gm-panel .detected-hazards-section { padding: 0; }
+
+/* Phone: bottom sheet over the map */
+@media (max-width: 768px) {
+  .gm-panel {
+    top: auto; left: 0; right: 0; bottom: 0; width: 100%; height: 58dvh;
+    border-radius: 18px 18px 0 0; border-width: 1px 0 0; padding: 0 14px max(16px, env(safe-area-inset-bottom));
+    transition: height .25s ease;
+  }
+  .gm-panel.collapsed { height: 84px; overflow: hidden; }
+  .gm-handle {
+    display: flex; justify-content: center; align-items: center; flex: 0 0 auto;
+    position: sticky; top: 0; z-index: 2; width: 100%; height: 28px; margin-bottom: -4px;
+    background: var(--bg-card); border: 0; cursor: pointer;
+  }
+  .gm-handle span { width: 40px; height: 5px; border-radius: 3px; background: var(--border-color); }
+  .gm-map .map-legend-overlay { display: none; }
+  /* undo the earlier stacked-page rules that no longer apply */
+  .main-content.gm-main { padding: 0; }
+}
+
+/* Fix: sections with overflow:hidden were shrinking to 0 height inside the flex panel */
+.gm-panel > * { flex-shrink: 0; }
+.gm-panel .hero-section { overflow: visible; }
+.gm-panel .hero-right-card-wrapper { order: -1; }
+
+
+/* ==========================================================================
+   17. DIRECTIONS — turn-by-turn with hazard warnings
+   ========================================================================== */
+.directions-card { border-top: 1px solid var(--border-color); padding-top: 14px; }
+.directions-title { font-size: 1rem; display: flex; justify-content: space-between; align-items: baseline; gap: 8px; margin-bottom: 10px; }
+.directions-title span { font-size: .8rem; font-weight: 500; color: var(--text-muted); }
+.directions-empty { font-size: .85rem; color: var(--text-muted); }
+.directions-list { list-style: none; display: flex; flex-direction: column; }
+.direction-step { display: flex; gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--border-color); }
+.direction-step:last-child { border-bottom: 0; }
+.direction-icon { flex: 0 0 32px; height: 32px; border-radius: 50%; background: var(--bg-subtle); color: var(--text-main); display: grid; place-items: center; }
+.direction-body { flex: 1; min-width: 0; }
+.direction-text { font-size: .9rem; color: var(--text-main); line-height: 1.35; overflow-wrap: anywhere; }
+.direction-dist { font-size: .78rem; color: var(--text-muted); margin-top: 2px; }
+.direction-hazard { display: flex; gap: 6px; align-items: flex-start; width: 100%; text-align: left; margin-top: 6px; padding: 8px 10px; min-height: 40px;
+  border-radius: var(--radius-md); border: 1px solid var(--color-warning-border, #fcd34d); background: var(--color-warning-soft, #fffbeb); color: var(--color-warning-text, #92400e); font-size: .82rem; cursor: pointer; }
+.direction-hazard.sev-High { border-color: var(--color-danger-border); background: var(--color-danger-soft); color: var(--color-danger-text); }
+.direction-hazard.sev-Low { border-color: var(--color-low-border); background: var(--color-accent-soft); color: var(--color-accent-text); }
+.direction-hazard svg { flex: 0 0 auto; margin-top: 2px; }
+.direction-hazard em { font-style: normal; font-weight: 600; }

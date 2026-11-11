@@ -1,7 +1,7 @@
 import React from 'react';
 import { Moon, Sun, Settings } from 'lucide-react';
 
-export default function Navbar({ activeTab, setActiveTab, darkMode, setDarkMode, onOpenSettings, backendOnline, liveMode }) {
+export default function Navbar({ activeTab, setActiveTab, darkMode, setDarkMode, onOpenSettings, backendOnline, liveMode, user, onLogout }) {
   const statusClass = !liveMode ? 'demo' : backendOnline === null ? 'unknown' : backendOnline ? 'online' : 'offline';
   const statusLabel = !liveMode ? 'Demo mode' : backendOnline === null ? 'Checking server…' : backendOnline ? 'Server online' : 'Server offline';
 
@@ -25,6 +25,11 @@ export default function Navbar({ activeTab, setActiveTab, darkMode, setDarkMode,
         </nav>
 
         <div className="navbar-actions">
+          {user && <button type="button" className={`nav-link-btn ${activeTab === 'mine' ? 'active' : ''}`} onClick={() => setActiveTab('mine')}>My reports</button>}
+          {user?.isAdmin && <button type="button" className={`nav-link-btn ${activeTab === 'admin' ? 'active' : ''}`} onClick={() => setActiveTab('admin')}>Admin</button>}
+          {user
+            ? <button type="button" className="nav-link-btn" onClick={onLogout} title="Log out">{user.name} · Log out</button>
+            : <button type="button" className={`nav-link-btn ${activeTab === 'login' ? 'active' : ''}`} onClick={() => setActiveTab('login')}>Log in</button>}
           <button type="button" className={`backend-status-chip status-${statusClass}`} onClick={onOpenSettings} title="Open settings">
             <span className="status-dot"></span>
             <span className="status-label">{statusLabel}</span>

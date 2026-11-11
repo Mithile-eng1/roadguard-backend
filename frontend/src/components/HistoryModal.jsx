@@ -4,7 +4,7 @@ import { VEHICLE_DATABASE, DEFAULT_VEHICLE } from '../data/vehicles';
 import { buildRouteView } from '../services/risk';
 import { displayPlace } from '../services/geo';
 
-export default function HistoryModal({ isOpen, onClose, onSelectHistoryRoute, onClear, historyItems }) {
+export default function HistoryModal({ isOpen, onClose, onSelectHistoryRoute, onClear, historyItems, reports = [] }) {
   if (!isOpen) return null;
 
   return (
@@ -37,7 +37,7 @@ export default function HistoryModal({ isOpen, onClose, onSelectHistoryRoute, on
             <div className="history-list-cards">
               {historyItems.map((item) => {
                 const vehicle = VEHICLE_DATABASE.find((v) => v.id === item.vehicleId) || DEFAULT_VEHICLE;
-                const view = buildRouteView(item, item.recommendedRouteIndex || 0, vehicle);
+                const view = buildRouteView(item, item.recommendedRouteIndex || 0, vehicle, reports);
                 if (!view) return null;
                 const score = view.overallScore;
                 return (
@@ -67,6 +67,10 @@ export default function HistoryModal({ isOpen, onClose, onSelectHistoryRoute, on
                       <div className="history-meta-tag">
                         <span>{view.hazards.length} hazards · {item.alternativeRoutes.length} routes</span>
                       </div>
+                      {(() => {
+                        const n = view.crowdCount;
+                        return n > 0 && <div className="history-meta-tag" style={{ color: '#8b5cf6' }}><span>⚠ {n} confirmed by users</span></div>;
+                      })()}
                     </div>
 
                     <button

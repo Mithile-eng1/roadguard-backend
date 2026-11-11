@@ -1,11 +1,12 @@
-﻿// RoadGuard route analysis: live Python backend (job + polling) and an offline demo engine.
+// RoadGuard route analysis: live Python backend (job + polling) and an offline demo engine.
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 async function readJson(res) {
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
-    throw new Error(err.detail || `Backend returned ${res.status}`);
+    const msg = Array.isArray(err.detail) ? 'Please check the form fields' : err.detail;
+    throw Object.assign(new Error(msg || `Backend returned ${res.status}`), { status: res.status });
   }
   return res.json();
 }
@@ -31,6 +32,52 @@ export async function fetchMapsKey(backendUrl = '') {
   } catch {
     return '';
   }
+}
+
+// Crowdsourced hazard reports
+export async function fetchReports(backendUrl = '') {
+  const base = backendUrl.replace(/\/$/, '');
+  try {
+    const list = await readJson(await fetch(`${base}/api/reports`));
+    return list.map((r) => (r.photo ? { ...r, photo: base + r.photo } : r)); // photos are served by the backend
+  } catch { return []; }
+}
+
+// Generic call for the account / admin endpoints
+async function api(backendUrl, path, { method = 'GET', token, body } = {}) {
+  return readJson(await fetch(`${backendUrl.replace(/\/$/, '')}${path}`, {
+    method,
+    headers: { ...(body ? { 'Content-Type': 'application/json' } : {}), ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+    body: body ? JSON.stringify(body) : undefined,
+  }));
+}
+export const fetchMe = (b, token) => api(b, '/api/me', { token });
+export const verifyEmail = (b, t) => api(b, '/api/verify', { method: 'POST', body: { token: t } });
+export const resendVerification = (b, token) => api(b, '/api/resend-verification', { method: 'POST', token });
+export const fetchMyReports = (b, token) => api(b, '/api/my-reports', { token });
+export const deleteReport = (b, token, id) => api(b, `/api/reports/${id}`, { method: 'DELETE', token });
+export const adminReports = (b, token) => api(b, '/api/admin/reports', { token });
+export const adminUsers = (b, token) => api(b, '/api/admin/users', { token });
+export const adminBan = (b, token, email, banned) => api(b, '/api/admin/ban', { method: 'POST', token, body: { email, banned } });
+
+// Login state lives in localStorage (per-browser convenience; the server re-checks the token)
+export const loadAuth = () => { try { return JSON.parse(localStorage.getItem('rg_auth')); } catch { return null; } };
+export const saveAuth = (a) => { try { if (a) localStorage.setItem('rg_auth', JSON.stringify(a)); else localStorage.removeItem('rg_auth'); } catch { /* storage blocked */ } };
+
+export async function authRequest(backendUrl, mode, body) { // mode: 'login' | 'signup'
+  return readJson(await fetch(`${backendUrl.replace(/\/$/, '')}/api/${mode}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  }));
+}
+
+export async function submitReport(backendUrl, report, token) {
+  return readJson(await fetch(`${backendUrl.replace(/\/$/, '')}/api/reports`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+    body: JSON.stringify(report),
+  }));
 }
 
 // ============================================================
@@ -79,6 +126,7 @@ function transformBackendResult(data, base) {
     originAddress: data.origin_address || '',
     destinationAddress: data.destination_address || '',
     analysisTimeSec: data.analysis_time_sec,
+    cached: !!data.cached,
     startCoord: alternativeRoutes[0]?.start_coord,
     endCoord: alternativeRoutes[0]?.end_coord,
   };
@@ -178,8 +226,8 @@ const INDIAN_LOCATIONS = {
 
 // 20 Real road hazard images from the dataset
 export const REAL_HAZARD_ASSETS = {
-  potholes: Array.from({ length: 10 }, (_, i) => `${import.meta.env.BASE_URL}hazards/pothole_${i + 1}.jpg`),
-  speedbreakers: Array.from({ length: 10 }, (_, i) => `${import.meta.env.BASE_URL}hazards/speedbreaker_${i + 1}.jpg`),
+  potholes: Array.from({ length: 10 }, (_, i) => `/hazards/pothole_${i + 1}.jpg`),
+  speedbreakers: Array.from({ length: 10 }, (_, i) => `/hazards/speedbreaker_${i + 1}.jpg`),
 };
 
 // Helper: Hash string into deterministic integer

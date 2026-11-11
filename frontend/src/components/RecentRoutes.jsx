@@ -7,7 +7,7 @@ import { displayPlace } from '../services/geo';
 
 // Fills the space under the intro: your last few analyses (one click to reopen),
 // or example routes when there is no history yet.
-export default function RecentRoutes({ historyItems, onOpenHistoryItem, onPreset, onOpenHistory }) {
+export default function RecentRoutes({ historyItems, reports, onOpenHistoryItem, onPreset, onOpenHistory }) {
   const recent = historyItems.slice(0, 4);
 
   if (recent.length === 0) {
@@ -47,7 +47,7 @@ export default function RecentRoutes({ historyItems, onOpenHistoryItem, onPreset
         {recent.map((item) => {
           const vehicle = VEHICLE_DATABASE.find((v) => v.id === item.vehicleId) || DEFAULT_VEHICLE;
           const v = item.clearanceMm ? { ...vehicle, groundClearance: item.clearanceMm } : vehicle;
-          const view = buildRouteView(item, item.recommendedRouteIndex || 0, v);
+          const view = buildRouteView(item, item.recommendedRouteIndex || 0, v, reports);
           if (!view) return null;
           const score = view.overallScore;
           return (
