@@ -18,6 +18,15 @@ const EN = {
   'report.note': 'Note (optional)', 'report.addPhoto': 'Add photo', 'report.changePhoto': 'Change photo', 'report.submit': 'Submit report',
   'report.pick': 'Pick a location to see Street View',
   'map.reportBtn': '⚠ Report hazard',
+  'set.title': 'Settings', 'set.sec.look': 'Language & appearance', 'set.sec.drive': 'Driving & alerts', 'set.sec.account': 'Account', 'set.sec.app': 'App', 'set.sec.data': 'Your data on this device', 'set.sec.conn': 'Connection',
+  'set.language': 'Language', 'set.dark': 'Dark mode', 'set.textSize': 'Text size', 'set.size.normal': 'Normal', 'set.size.large': 'Large', 'set.size.xl': 'Extra large',
+  'set.voice': 'Voice warnings', 'set.voiceHelp': 'Speak hazard warnings aloud in drive mode.', 'set.warnDist': 'Warn me this far ahead',
+  'set.bump': 'Bump detection', 'set.bumpHelp': 'After a jolt while driving, ask "did you hit a bump?" Needs motion sensor permission.',
+  'set.sens': 'Bump sensitivity', 'set.sens.low': 'Low', 'set.sens.normal': 'Normal', 'set.sens.high': 'High',
+  'set.notLoggedIn': 'You are not logged in.', 'set.verified': 'Email verified', 'set.unverified': 'Email not verified',
+  'set.install': 'Install RoadGuard on this device', 'set.installed': 'Installed as an app', 'set.installHint': 'Use your browser menu: "Install app" or "Add to Home screen". Works on secure (HTTPS) sites.',
+  'set.clearHistory': 'Clear route history ({n})', 'set.confirmClear': 'Delete all saved routes on this device?', 'set.resetAll': 'Reset all settings', 'set.confirmReset': 'Reset every setting to its default?',
+  'set.saveConn': 'Save connection', 'set.saved': 'Saved', 'set.useServer': 'Use the analysis server', 'set.serverUrl': 'Server URL', 'set.test': 'Test',
   'map.myLocation': '📍 My location', 'map.following': '📍 Following you', 'map.recenter': '📍 Recenter', 'map.youAreHere': 'You are here',
   'map.gpsDenied': 'Location permission refused or unavailable. Allow location access in your browser settings.', 'drive.left': '{km} km left',
   'vote.see': '👍 I see this too', 'vote.fixed': "✔ It's fixed", 'vote.thanks': 'Thanks, noted', 'vote.thanksFixed': 'Thanks, marked as fixed',
@@ -67,6 +76,15 @@ const HI = {
   'report.note': 'टिप्पणी (वैकल्पिक)', 'report.addPhoto': 'फोटो जोड़ें', 'report.changePhoto': 'फोटो बदलें', 'report.submit': 'रिपोर्ट भेजें',
   'report.pick': 'स्ट्रीट व्यू देखने के लिए जगह चुनें',
   'map.reportBtn': '⚠ खतरा रिपोर्ट करें',
+  'set.title': 'सेटिंग्स', 'set.sec.look': 'भाषा और रूप', 'set.sec.drive': 'ड्राइविंग और अलर्ट', 'set.sec.account': 'खाता', 'set.sec.app': 'ऐप', 'set.sec.data': 'इस डिवाइस पर आपका डेटा', 'set.sec.conn': 'कनेक्शन',
+  'set.language': 'भाषा', 'set.dark': 'डार्क मोड', 'set.textSize': 'टेक्स्ट का आकार', 'set.size.normal': 'सामान्य', 'set.size.large': 'बड़ा', 'set.size.xl': 'बहुत बड़ा',
+  'set.voice': 'आवाज़ी चेतावनी', 'set.voiceHelp': 'ड्राइव मोड में खतरे की चेतावनी बोलकर सुनाएँ।', 'set.warnDist': 'इतनी दूरी पहले चेतावनी दें',
+  'set.bump': 'झटका पहचान', 'set.bumpHelp': 'ड्राइविंग में झटका लगने पर पूछें "क्या आपको झटका लगा?" इसके लिए मोशन सेंसर की अनुमति चाहिए।',
+  'set.sens': 'झटके की संवेदनशीलता', 'set.sens.low': 'कम', 'set.sens.normal': 'सामान्य', 'set.sens.high': 'अधिक',
+  'set.notLoggedIn': 'आप लॉग इन नहीं हैं।', 'set.verified': 'ईमेल सत्यापित', 'set.unverified': 'ईमेल सत्यापित नहीं',
+  'set.install': 'इस डिवाइस पर RoadGuard इंस्टॉल करें', 'set.installed': 'ऐप के रूप में इंस्टॉल है', 'set.installHint': 'ब्राउज़र मेन्यू में "Install app" या "Add to Home screen" चुनें। यह सुरक्षित (HTTPS) साइट पर काम करता है।',
+  'set.clearHistory': 'रूट इतिहास साफ़ करें ({n})', 'set.confirmClear': 'इस डिवाइस पर सहेजे सभी रूट मिटाएँ?', 'set.resetAll': 'सभी सेटिंग्स रीसेट करें', 'set.confirmReset': 'हर सेटिंग को डिफ़ॉल्ट पर लौटाएँ?',
+  'set.saveConn': 'कनेक्शन सहेजें', 'set.saved': 'सहेजा गया', 'set.useServer': 'विश्लेषण सर्वर का उपयोग करें', 'set.serverUrl': 'सर्वर URL', 'set.test': 'जाँचें',
   'map.myLocation': '📍 मेरी लोकेशन', 'map.following': '📍 आपको फ़ॉलो कर रहा है', 'map.recenter': '📍 केंद्र में लाएँ', 'map.youAreHere': 'आप यहाँ हैं',
   'map.gpsDenied': 'लोकेशन की अनुमति नहीं मिली या उपलब्ध नहीं है। ब्राउज़र सेटिंग में लोकेशन की अनुमति दें।', 'drive.left': '{km} किमी बाकी',
   'vote.see': '👍 मैंने भी देखा', 'vote.fixed': '✔ यह ठीक हो चुका है', 'vote.thanks': 'धन्यवाद, दर्ज हो गया', 'vote.thanksFixed': 'धन्यवाद, ठीक हुआ चिह्नित किया',
@@ -116,6 +134,15 @@ const TA = {
   'report.note': 'குறிப்பு (விருப்பம்)', 'report.addPhoto': 'புகைப்படம் சேர்', 'report.changePhoto': 'புகைப்படத்தை மாற்று', 'report.submit': 'புகாரை அனுப்பு',
   'report.pick': 'ஸ்ட்ரீட் வியூ பார்க்க ஓர் இடத்தைத் தேர்ந்தெடுங்கள்',
   'map.reportBtn': '⚠ ஆபத்தைப் புகாரளி',
+  'set.title': 'அமைப்புகள்', 'set.sec.look': 'மொழி மற்றும் தோற்றம்', 'set.sec.drive': 'ஓட்டுதல் மற்றும் எச்சரிக்கைகள்', 'set.sec.account': 'கணக்கு', 'set.sec.app': 'செயலி', 'set.sec.data': 'இந்தச் சாதனத்தில் உங்கள் தரவு', 'set.sec.conn': 'இணைப்பு',
+  'set.language': 'மொழி', 'set.dark': 'இருள் பயன்முறை', 'set.textSize': 'எழுத்து அளவு', 'set.size.normal': 'சாதாரணம்', 'set.size.large': 'பெரியது', 'set.size.xl': 'மிகப் பெரியது',
+  'set.voice': 'குரல் எச்சரிக்கைகள்', 'set.voiceHelp': 'ஓட்டுநர் பயன்முறையில் ஆபத்து எச்சரிக்கைகளைக் குரலில் சொல்லவும்.', 'set.warnDist': 'இவ்வளவு தூரத்துக்கு முன் எச்சரிக்கவும்',
+  'set.bump': 'குலுக்கல் கண்டறிதல்', 'set.bumpHelp': 'ஓட்டும்போது குலுங்கினால் "குலுங்கியதா?" எனக் கேட்கும். இயக்க உணரி அனுமதி தேவை.',
+  'set.sens': 'குலுக்கல் உணர்திறன்', 'set.sens.low': 'குறைவு', 'set.sens.normal': 'சாதாரணம்', 'set.sens.high': 'அதிகம்',
+  'set.notLoggedIn': 'நீங்கள் உள்நுழையவில்லை.', 'set.verified': 'மின்னஞ்சல் சரிபார்க்கப்பட்டது', 'set.unverified': 'மின்னஞ்சல் சரிபார்க்கப்படவில்லை',
+  'set.install': 'இந்தச் சாதனத்தில் RoadGuard ஐ நிறுவு', 'set.installed': 'செயலியாக நிறுவப்பட்டுள்ளது', 'set.installHint': 'உலாவி மெனுவில் "Install app" அல்லது "Add to Home screen" தேர்ந்தெடுக்கவும். பாதுகாப்பான (HTTPS) தளங்களில் வேலை செய்யும்.',
+  'set.clearHistory': 'பாதை வரலாற்றை அழி ({n})', 'set.confirmClear': 'இந்தச் சாதனத்தில் சேமித்த எல்லா பாதைகளையும் நீக்கவா?', 'set.resetAll': 'எல்லா அமைப்புகளையும் மீட்டமை', 'set.confirmReset': 'ஒவ்வொரு அமைப்பையும் இயல்புநிலைக்கு மாற்றவா?',
+  'set.saveConn': 'இணைப்பைச் சேமி', 'set.saved': 'சேமிக்கப்பட்டது', 'set.useServer': 'பகுப்பாய்வு சேவையகத்தைப் பயன்படுத்து', 'set.serverUrl': 'சேவையகம் URL', 'set.test': 'சோதி',
   'map.myLocation': '📍 என் இடம்', 'map.following': '📍 உங்களைப் பின்தொடர்கிறது', 'map.recenter': '📍 மையப்படுத்து', 'map.youAreHere': 'நீங்கள் இங்கே இருக்கிறீர்கள்',
   'map.gpsDenied': 'இட அனுமதி மறுக்கப்பட்டது அல்லது கிடைக்கவில்லை. உலாவி அமைப்புகளில் இட அணுகலை அனுமதியுங்கள்.', 'drive.left': '{km} கிமீ மீதம்',
   'vote.see': '👍 நானும் பார்த்தேன்', 'vote.fixed': '✔ சரி செய்யப்பட்டுவிட்டது', 'vote.thanks': 'நன்றி, பதிவு செய்யப்பட்டது', 'vote.thanksFixed': 'நன்றி, சரிசெய்யப்பட்டதாகக் குறிக்கப்பட்டது',
@@ -157,13 +184,17 @@ export const SPEECH_LANG = { en: 'en-IN', ta: 'ta-IN', hi: 'hi-IN' };
 const fmt = (s, v) => s.replace(/\{(\w+)\}/g, (_, k) => (v && v[k] != null ? v[k] : `{${k}}`));
 export const translate = (lang, key, vars) => fmt((DICT[lang] && DICT[lang][key]) || EN[key] || key, vars);
 
+export function detectLang() {
+  const nav = (typeof navigator !== 'undefined' && navigator.language) || 'en';
+  return nav.startsWith('ta') ? 'ta' : nav.startsWith('hi') ? 'hi' : 'en';
+}
+
 function initialLang() {
   try {
     const saved = localStorage.getItem('rg_lang');
     if (saved && DICT[saved]) return saved;
   } catch { /* storage blocked */ }
-  const nav = (typeof navigator !== 'undefined' && navigator.language) || 'en';
-  return nav.startsWith('ta') ? 'ta' : nav.startsWith('hi') ? 'hi' : 'en';
+  return detectLang();
 }
 
 const Ctx = createContext({ lang: 'en', setLang: () => {}, t: (k, v) => translate('en', k, v) });

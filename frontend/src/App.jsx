@@ -16,6 +16,8 @@ import AuthPage, { VerifyNotice } from './components/AuthPage';
 import MyReportsPage from './components/MyReportsPage';
 import AdminPage from './components/AdminPage';
 import DriveMode from './components/DriveMode';
+import { loadPrefs, savePrefs, DEFAULT_PREFS, TEXT_SIZES } from './services/prefs';
+import { useT, detectLang } from './services/i18n';
 import { useLiveLocation } from './services/useLiveLocation';
 import AuthorityReport from './components/AuthorityReport';
 import { APIProvider } from '@vis.gl/react-google-maps';
@@ -80,6 +82,25 @@ function App() {
   const [historyItems, setHistoryItems] = useState(() => loadLocal('rg_history', []));
   const [apiConfig, setApiConfig] = useState(() => loadLocal('rg_settings', { backendUrl: '', useLiveApi: true }));
 
+  const { setLang } = useT();
+  const [prefs, setPrefs] = useState(loadPrefs);          // text size, voice, warning distance, bump settings
+  const setPref = (k, v) => setPrefs((p) => { const n = { ...p, [k]: v }; savePrefs(n); return n; });
+  useEffect(() => { document.documentElement.style.fontSize = TEXT_SIZES[prefs.textSize]; }, [prefs.textSize]);
+  const resetPrefs = () => {                              // back to what a first-time visitor gets
+    savePrefs(DEFAULT_PREFS); setPrefs({ ...DEFAULT_PREFS });
+    setDarkMode(window.matchMedia?.('(prefers-color-scheme: dark)').matches ?? false);
+    setLang(detectLang());
+  };
+  // "Install app": Chrome offers a prompt we can trigger from Settings
+  const [installEvt, setInstallEvt] = useState(null);
+  const [installed, setInstalled] = useState(() => !!window.matchMedia?.('(display-mode: standalone)').matches);
+  useEffect(() => {
+    const before = (e) => { e.preventDefault(); setInstallEvt(e); };
+    const done = () => { setInstallEvt(null); setInstalled(true); };
+    window.addEventListener('beforeinstallprompt', before);
+    window.addEventListener('appinstalled', done);
+    return () => { window.removeEventListener('beforeinstallprompt', before); window.removeEventListener('appinstalled', done); };
+  }, []);
   const [notice, setNotice] = useState('');
   const [driveOpen, setDriveOpen] = useState(false);
   const [tracking, setTracking] = useState(false);   // live "you are here" dot
@@ -380,7 +401,7 @@ function App() {
       />
 
       {driveOpen && routeData && (
-        <DriveMode routeData={routeData} vehicle={selectedVehicle} auth={auth} backendUrl={apiConfig.backendUrl}
+        <DriveMode routeData={routeData} vehicle={selectedVehicle} auth={auth} backendUrl={apiConfig.backendUrl} prefs={prefs}
           live={live} gpsError={gpsError} tracking={tracking}
           onStartTracking={() => { setTracking(true); setFollow(true); }} onStopTracking={() => setTracking(false)}
           onClose={() => setDriveOpen(false)} onReported={reloadReports} />
@@ -401,6 +422,14 @@ function App() {
         setApiConfig={setApiConfig}
         backendOnline={backendOnline}
         onTestConnection={pingBackend}
+        prefs={prefs} setPref={setPref} resetPrefs={resetPrefs}
+        darkMode={darkMode} setDarkMode={setDarkMode}
+        auth={auth} onLogout={() => setAuth(null)}
+        onOpenMine={() => { setIsSettingsOpen(false); setActiveTab('mine'); }}
+        onOpenLogin={() => { setIsSettingsOpen(false); setActiveTab('login'); }}
+        historyCount={historyItems.length} onClearHistory={() => setHistoryItems([])}
+        canInstall={!!installEvt} installed={installed}
+        onInstall={async () => { installEvt.prompt(); await installEvt.userChoice; setInstallEvt(null); }}
       />
 
       <MapPickerModal

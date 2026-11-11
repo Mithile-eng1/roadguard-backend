@@ -3,6 +3,7 @@ import { X, Volume2, VolumeX, Navigation } from 'lucide-react';
 import { useT, SPEECH_LANG } from '../services/i18n';
 import { hazardsAhead, dueWarnings, safeSpeedKmh, withRouteKm, makeBumpDetector } from '../services/drive';
 import { submitReport } from '../services/routeService';
+import { SENSITIVITY } from '../services/prefs';
 
 // A sheet at the bottom so the map (with your moving dot) stays visible above it.
 const sheet = { position: 'fixed', left: 0, right: 0, bottom: 0, zIndex: 80, maxHeight: '48vh', overflowY: 'auto', background: '#0b1220', color: '#fff', display: 'flex', flexDirection: 'column', gap: 10, padding: 12, borderRadius: '16px 16px 0 0', boxShadow: '0 -4px 16px rgba(0,0,0,.4)' };
@@ -12,21 +13,25 @@ const btn = (bg) => ({ background: bg, color: '#fff', border: 'none', borderRadi
 // Warnings while driving. The GPS position comes from the app-wide live feed (the same one that moves the
 // dot on the map); this adds spoken + on-screen hazard warnings and "did you just hit a bump?" from the
 // phone's motion sensor.
-export default function DriveMode({ routeData, vehicle, auth, backendUrl, live, gpsError, tracking, onStartTracking, onStopTracking, onClose, onReported }) {
+export default function DriveMode({ routeData, vehicle, auth, backendUrl, prefs, live, gpsError, tracking, onStartTracking, onStopTracking, onClose, onReported }) {
   const { t, lang } = useT();
   const line = routeData.routePolyline || [];
   const hazards = useMemo(() => withRouteKm(line, routeData.hazards || []), [routeData]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const [running, setRunning] = useState(false);
-  const [voice, setVoice] = useState(true);
+  const [voice, setVoice] = useState(prefs.voice);
   const [info, setInfo] = useState(null);        // { offRoute, ahead, doneKm }
   const [sensor, setSensor] = useState('');       // '' | on | denied | unavailable
   const [bump, setBump] = useState(null);         // { lat, lng } while the prompt is open
   const [msg, setMsg] = useState('');
   const [alertText, setAlertText] = useState('');
 
-  const r = useRef({ last: null, kmh: null, spoken: new Map(), detector: makeBumpDetector(), wake: null, voice: true, lang, motion: null, t });
+  const r = useRef({ last: null, kmh: null, spoken: new Map(), detector: makeBumpDetector({ threshold: SENSITIVITY[prefs.sens] }), wake: null, voice: true, lang, motion: null, t });
   r.current.voice = voice; r.current.lang = lang; r.current.t = t; // always the current language, even mid-drive
+
+  // settings changed while driving
+  useEffect(() => { r.current.detector = makeBumpDetector({ threshold: SENSITIVITY[prefs.sens] }); }, [prefs.sens]);
+  useEffect(() => { setVoice(prefs.voice); }, [prefs.voice]);
 
   const speak = (text) => {
     if (!r.current.voice || !('speechSynthesis' in window)) return;
@@ -46,11 +51,11 @@ export default function DriveMode({ routeData, vehicle, auth, backendUrl, live, 
     const here = [live.lat, live.lng];
     r.current.kmh = live.speed;
     r.current.last = here;
-    const res = hazardsAhead(line, hazards, here);
+    const res = hazardsAhead(line, hazards, here, prefs.warnDist + 100);
     setInfo(res);
     const clearance = vehicle?.groundClearance || 165;
     const tt = r.current.t;
-    for (const w of dueWarnings(res.ahead, r.current.spoken)) {
+    for (const w of dueWarnings(res.ahead, r.current.spoken, prefs.warnDist, Math.round(prefs.warnDist * 0.4))) {
       const v = safeSpeedKmh(w.h, clearance);
       const type = tt(`type.${w.h.category}`);
       const text = w.stage === 2 ? tt('drive.now', { type, v }) : tt('drive.ahead', { type, m: Math.round(w.distM / 10) * 10, v });
@@ -70,7 +75,8 @@ export default function DriveMode({ routeData, vehicle, auth, backendUrl, live, 
   const start = async () => {
     setMsg('');
     onStartTracking();
-    try {
+    if (!prefs.bump) setSensor('off');           // bump detection switched off in Settings
+    else try {
       const DM = window.DeviceMotionEvent;
       if (!DM) throw new Error('none');
       if (typeof DM.requestPermission === 'function' && (await DM.requestPermission()) !== 'granted') throw new Error('denied'); // iPhone / new Chrome

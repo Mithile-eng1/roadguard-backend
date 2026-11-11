@@ -30,11 +30,11 @@ export function hazardsAhead(line, hazards, pos, maxM = 400) {
   return { offRoute: false, ahead, doneKm: me.km };
 }
 
-// Each hazard is announced twice: first inside 300 m, again inside 120 m. spoken: Map(id -> stage), mutated.
-export function dueWarnings(ahead, spoken) {
+// Each hazard is announced twice: first inside `far` m (default 300), again inside `near` m (default 120). spoken: Map(id -> stage), mutated.
+export function dueWarnings(ahead, spoken, far = 300, near = 120) {
   const out = [];
   for (const { h, distM } of ahead) {
-    const stage = distM <= 120 ? 2 : distM <= 300 ? 1 : 0;
+    const stage = distM <= near ? 2 : distM <= far ? 1 : 0;
     if (stage > (spoken.get(h.id) || 0)) { spoken.set(h.id, stage); out.push({ h, distM: Math.max(0, distM), stage }); }
   }
   return out;
