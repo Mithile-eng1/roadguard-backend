@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Map, AdvancedMarker, InfoWindow, Polyline, ControlPosition, useMap } from '@vis.gl/react-google-maps';
 import { ExternalLink } from 'lucide-react';
 import { clusterReports, CONFIRM_AT } from '../services/risk';
+import { useT } from '../services/i18n';
 
 const SEVERITY_COLOR = { High: '#ef4444', Medium: '#f59e0b', Low: '#10b981' };
 const toLatLng = ([lat, lng]) => ({ lat, lng });
@@ -49,18 +50,19 @@ function MapController({ polyline, focusCoords }) {
 
 // Confirm / "fixed" votes on a crowdsourced hazard
 function VoteButtons({ cluster, onVote }) {
+  const { t } = useT();
   const [msg, setMsg] = useState('');
   const [busy, setBusy] = useState(false);
   const vote = async (status) => {
     setBusy(true);
-    try { await onVote(cluster, status); setMsg(status === 'present' ? 'Thanks, noted' : 'Thanks, marked as fixed'); } catch (e) { setMsg(e.message); }
+    try { await onVote(cluster, status); setMsg(status === 'present' ? t('vote.thanks') : t('vote.thanksFixed')); } catch (e) { setMsg(e.message); }
     setBusy(false);
   };
   return (
     <div style={{ marginTop: 8 }}>
       <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-        <button type="button" disabled={busy} onClick={() => vote('present')}>👍 I see this too</button>
-        <button type="button" disabled={busy} onClick={() => vote('gone')}>✔ It's fixed</button>
+        <button type="button" disabled={busy} onClick={() => vote('present')}>{t('vote.see')}</button>
+        <button type="button" disabled={busy} onClick={() => vote('gone')}>{t('vote.fixed')}</button>
       </div>
       {msg && <div style={{ marginTop: 4, fontSize: 12 }}>{msg}</div>}
     </div>
@@ -72,6 +74,7 @@ function streetViewLink([lat, lng]) {
 }
 
 export default function InteractiveMap({ routeData, focusedHazard, onSelectHazard, onSelectRoute, darkMode, mapsKey, reports = [], onOpenReport, onVote }) {
+  const { t } = useT();
   const [openId, setOpenId] = useState(null); // hazard id | 'start' | 'end'
 
   // "View on Map" from the hazard grid opens that hazard's popup
@@ -96,6 +99,7 @@ export default function InteractiveMap({ routeData, focusedHazard, onSelectHazar
   const alternatives = (routeData?.alternativeRoutes || []).filter((_, i) => i !== routeData.activeRouteIndex);
   const openHazard = routeData?.hazards?.find((h) => h.id === openId);
   const clusters = clusterReports(reports);
+  const unscanned = routeData?.unscanned || [];
   const onRoute = new Set((routeData?.hazards || []).filter((h) => h.crowd).map((h) => h.clusterId));
   const openCluster = clusters.find((c) => `c_${c.id}` === openId);
   const clusterOf = (h) => clusters.find((c) => c.id === h.clusterId);
@@ -111,11 +115,14 @@ export default function InteractiveMap({ routeData, focusedHazard, onSelectHazar
         {alternatives.length > 0 && (
           <div className="legend-item"><span className="legend-alt-line"></span><span>Other routes</span></div>
         )}
+        {unscanned.length > 0 && (
+          <div className="legend-item"><span style={{ display: 'inline-block', width: 22, borderTop: '3px dashed #f97316' }}></span><span>{t('cov.legend')}</span></div>
+        )}
       </div>}
 
       <button type="button" onClick={onOpenReport}
         style={{ position: 'absolute', top: 56, right: 12, zIndex: 5, padding: '8px 12px', borderRadius: 8, border: 'none', cursor: 'pointer', background: '#fff', color: '#111', boxShadow: '0 1px 4px rgba(0,0,0,.3)' }}>
-        ⚠ Report hazard
+        {t('map.reportBtn')}
       </button>
 
       {/* colorScheme is init-only, hence the key. DEMO_MAP_ID is Google's public id
@@ -150,6 +157,11 @@ export default function InteractiveMap({ routeData, focusedHazard, onSelectHazar
           {/* Active route: glow + core stroke */}
           {polyline.length > 1 && <><Polyline path={polyline.map(toLatLng)} strokeColor="#1d4ed8" strokeOpacity={0.5} strokeWeight={9} zIndex={2} clickable={false} />
           <Polyline path={polyline.map(toLatLng)} strokeColor="#3b82f6" strokeOpacity={1} strokeWeight={4.5} zIndex={3} clickable={false} /></>}
+
+          {/* stretches with no Street View: unknown, not safe */}
+          {unscanned.map((s, i) => (
+            <Polyline key={`gap_${i}`} path={s.path.map(toLatLng)} strokeColor="#f97316" strokeWeight={6} zIndex={4} clickable={false} {...DASHED} />
+          ))}
 
           {routeData?.startCoord && (
             <AdvancedMarker position={toLatLng(routeData.startCoord)} title="Start" onClick={() => setOpenId('start')} zIndex={10}>
@@ -190,7 +202,7 @@ export default function InteractiveMap({ routeData, focusedHazard, onSelectHazar
                 {openCluster.photo && <img src={openCluster.photo} alt="" className="map-popup-image" onError={(e) => { e.target.style.display = 'none'; }} />}
                 <strong>{openCluster.category === 'pothole' ? 'Pothole' : 'Speed breaker'} · reported by users</strong>
                 <div className="popup-meta">
-                  {openCluster.confirmed ? `Confirmed by ${openCluster.count} users` : `${openCluster.count} of ${CONFIRM_AT} reports needed to confirm`}
+                  {openCluster.confirmed ? t('vote.confirmed', { n: openCluster.count }) : t('vote.needed', { n: openCluster.count, k: CONFIRM_AT })}
                 </div>
                 {openCluster.notes.map((n, i) => <div key={i} className="popup-location">“{n}”</div>)}
                 <VoteButtons cluster={openCluster} onVote={onVote} />

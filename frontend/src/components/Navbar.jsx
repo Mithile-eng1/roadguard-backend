@@ -1,7 +1,9 @@
 import React from 'react';
 import { Moon, Sun, Settings } from 'lucide-react';
+import { useT, LANGS } from '../services/i18n';
 
 export default function Navbar({ activeTab, setActiveTab, darkMode, setDarkMode, onOpenSettings, backendOnline, liveMode, user, onLogout }) {
+  const { t, lang, setLang } = useT();
   const statusClass = !liveMode ? 'demo' : backendOnline === null ? 'unknown' : backendOnline ? 'online' : 'offline';
   const statusLabel = !liveMode ? 'Demo mode' : backendOnline === null ? 'Checking server…' : backendOnline ? 'Server online' : 'Server offline';
 
@@ -19,17 +21,21 @@ export default function Navbar({ activeTab, setActiveTab, darkMode, setDarkMode,
         </a>
 
         <nav className="navbar-nav">
-          <button className={`nav-link-btn ${activeTab === 'home' ? 'active' : ''}`} onClick={() => setActiveTab('home')}>Home</button>
-          <button className="nav-link-btn" onClick={() => setActiveTab('history')}>History</button>
-          <button className={`nav-link-btn ${activeTab === 'about' ? 'active' : ''}`} onClick={() => setActiveTab('about')}>About</button>
+          <button className={`nav-link-btn ${activeTab === 'home' ? 'active' : ''}`} onClick={() => setActiveTab('home')}>{t('nav.home')}</button>
+          <button className="nav-link-btn" onClick={() => setActiveTab('history')}>{t('nav.history')}</button>
+          <button className={`nav-link-btn ${activeTab === 'about' ? 'active' : ''}`} onClick={() => setActiveTab('about')}>{t('nav.about')}</button>
         </nav>
 
         <div className="navbar-actions">
-          {user && <button type="button" className={`nav-link-btn ${activeTab === 'mine' ? 'active' : ''}`} onClick={() => setActiveTab('mine')}>My reports</button>}
-          {user?.isAdmin && <button type="button" className={`nav-link-btn ${activeTab === 'admin' ? 'active' : ''}`} onClick={() => setActiveTab('admin')}>Admin</button>}
+          <select value={lang} onChange={(e) => setLang(e.target.value)} aria-label={t('nav.language')} title={t('nav.language')}
+            style={{ background: 'transparent', color: 'inherit', border: '1px solid var(--border-color)', borderRadius: 8, padding: '4px 6px', minHeight: 32 }}>
+            {LANGS.map(([code, name]) => <option key={code} value={code}>{name}</option>)}
+          </select>
+          {user && <button type="button" className={`nav-link-btn ${activeTab === 'mine' ? 'active' : ''}`} onClick={() => setActiveTab('mine')}>{t('nav.myReports')}</button>}
+          {user?.isAdmin && <button type="button" className={`nav-link-btn ${activeTab === 'admin' ? 'active' : ''}`} onClick={() => setActiveTab('admin')}>{t('nav.admin')}</button>}
           {user
-            ? <button type="button" className="nav-link-btn" onClick={onLogout} title="Log out">{user.name} · Log out</button>
-            : <button type="button" className={`nav-link-btn ${activeTab === 'login' ? 'active' : ''}`} onClick={() => setActiveTab('login')}>Log in</button>}
+            ? <button type="button" className="nav-link-btn" onClick={onLogout} title={t('nav.logout')}>{user.name} · {t('nav.logout')}</button>
+            : <button type="button" className={`nav-link-btn ${activeTab === 'login' ? 'active' : ''}`} onClick={() => setActiveTab('login')}>{t('nav.login')}</button>}
           <button type="button" className={`backend-status-chip status-${statusClass}`} onClick={onOpenSettings} title="Open settings">
             <span className="status-dot"></span>
             <span className="status-label">{statusLabel}</span>

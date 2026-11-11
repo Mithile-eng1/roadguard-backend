@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { ArrowLeft, Trash2 } from 'lucide-react';
-import { adminReports, adminUsers, adminBan, deleteReport } from '../services/routeService';
+import { adminReports, adminUsers, adminBan, deleteReport, adminEval, adminEvalSet, downloadEvalZip } from '../services/routeService';
 import { clusterReports } from '../services/risk';
 
 const cell = { padding: '8px 10px', borderBottom: '1px solid var(--border-color)', textAlign: 'left' };
@@ -10,11 +10,12 @@ const stat = { padding: '12px 16px', border: '1px solid var(--border-color)', bo
 export default function AdminPage({ backendUrl, token, onBack, onChanged }) {
   const [reports, setReports] = useState(null);
   const [users, setUsers] = useState([]);
+  const [evals, setEvals] = useState({});
   const [tab, setTab] = useState('reports');
   const [err, setErr] = useState('');
 
-  const load = () => Promise.all([adminReports(backendUrl, token), adminUsers(backendUrl, token)])
-    .then(([r, u]) => { setReports(r.sort((a, b) => b.ts - a.ts)); setUsers(u); })
+  const load = () => Promise.all([adminReports(backendUrl, token), adminUsers(backendUrl, token), adminEval(backendUrl, token)])
+    .then(([r, u, e]) => { setReports(r.sort((a, b) => b.ts - a.ts)); setUsers(u); setEvals(e); })
     .catch((e) => setErr(e.message));
   useEffect(() => { load(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -24,6 +25,16 @@ export default function AdminPage({ backendUrl, token, onBack, onChanged }) {
   const blocked = new Set(users.filter((u) => u.banned).map((u) => u.email));
   const live = (reports || []).filter((r) => !blocked.has(r.email) && Date.now() / 1000 - r.ts < 60 * 86400);
   const clusters = clusterReports(live);
+  // confirmed hazards with a photo are candidates for a held-out real-world test set
+  const candidates = clusters.filter((c) => c.confirmed && c.photo);
+  const review = (c, status) => act(() => adminEvalSet(backendUrl, token, { id: c.id, status, category: c.category, lat: c.lat, lng: c.lng, photo: c.photo, count: c.count }));
+  const download = async () => {
+    try {
+      const url = URL.createObjectURL(await downloadEvalZip(backendUrl, token));
+      const a = document.createElement('a'); a.href = url; a.download = 'roadguard_eval_set.zip'; a.click();
+      URL.revokeObjectURL(url);
+    } catch (e) { setErr(e.message); }
+  };
 
   return (
     <div style={{ width: '100%', maxWidth: 1100, margin: '0 auto', display: 'grid', gap: 16 }}>
@@ -45,10 +56,43 @@ export default function AdminPage({ backendUrl, token, onBack, onChanged }) {
       <div style={{ display: 'flex', gap: 8 }}>
         <button type="button" className={tab === 'reports' ? 'btn-action-primary' : 'btn-secondary'} onClick={() => setTab('reports')}>Reports</button>
         <button type="button" className={tab === 'users' ? 'btn-action-primary' : 'btn-secondary'} onClick={() => setTab('users')}>Users</button>
+        <button type="button" className={tab === 'eval' ? 'btn-action-primary' : 'btn-secondary'} onClick={() => setTab('eval')}>Test set</button>
       </div>
 
       <div style={{ overflowX: 'auto' }}>
-        {tab === 'reports' ? (
+        {tab === 'eval' ? (
+          <div style={{ display: 'grid', gap: 10 }}>
+            <p style={{ margin: 0 }}>
+              Photos of hazards that 3+ drivers confirmed. Look at each photo and approve it only if it really shows the labelled hazard.
+              Only <b>approved</b> photos go into the download, to be used as a held-out real-world test set. Never retrain on unreviewed photos.
+            </p>
+            <div><button type="button" className="btn-action-primary" onClick={download}>Download approved set (.zip)</button>
+              {' '}<span data-testid="eval-count">{Object.values(evals).filter((v) => v.status === 'approved').length} approved</span></div>
+            {candidates.length === 0 ? <div>No confirmed hazards with a photo yet.</div> : (
+              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '.9rem' }}>
+                <thead><tr><th style={cell}>Photo</th><th style={cell}>Label</th><th style={cell}>Drivers</th><th style={cell}>Where</th><th style={cell}>Review</th></tr></thead>
+                <tbody>
+                  {candidates.map((c) => {
+                    const st = evals[c.id]?.status || 'pending';
+                    return (
+                      <tr key={c.id}>
+                        <td style={cell}><a href={base + c.photo} target="_blank" rel="noreferrer"><img src={base + c.photo} alt="" style={{ height: 64, borderRadius: 4 }} /></a></td>
+                        <td style={cell}>{c.category === 'pothole' ? 'Pothole' : 'Speed breaker'}</td>
+                        <td style={cell}>{c.count}</td>
+                        <td style={cell}><a href={`https://www.google.com/maps?q=${c.lat},${c.lng}`} target="_blank" rel="noreferrer">{c.lat.toFixed(4)}, {c.lng.toFixed(4)}</a></td>
+                        <td style={cell}>
+                          <b data-testid={`eval-status-${c.id}`}>{st}</b>{' '}
+                          <button type="button" className="btn-secondary btn-sm" onClick={() => review(c, 'approved')}>Approve</button>{' '}
+                          <button type="button" className="btn-secondary btn-sm" onClick={() => review(c, 'rejected')}>Reject</button>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            )}
+          </div>
+        ) : tab === 'reports' ? (
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '.9rem' }}>
             <thead><tr><th style={cell}>Date</th><th style={cell}>User</th><th style={cell}>What</th><th style={cell}>Where</th><th style={cell}>Note</th><th style={cell}>Photo</th><th style={cell}></th></tr></thead>
             <tbody>

@@ -1,0 +1,14 @@
+{
+  "name": "RoadGuard - check a road for potholes and speed breakers",
+  "short_name": "RoadGuard",
+  "description": "Scans Street View along your route for potholes and speed breakers and rates it for your vehicle.",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#16A34A",
+  "icons": [
+    { "src": "icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any maskable" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
+  ]
+}

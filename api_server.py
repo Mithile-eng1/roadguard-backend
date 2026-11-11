@@ -12,7 +12,9 @@ Flow:
 """
 
 import base64
+import csv
 import hashlib
+import io
 import hmac
 import json
 import os
@@ -24,12 +26,14 @@ import sys
 import threading
 import time
 import uuid
+import zipfile
 from pathlib import Path
 from typing import Optional
 
 import uvicorn
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import Response
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 import cv2
@@ -121,11 +125,33 @@ def _hash(pw: str, salt: bytes) -> str:
     return hashlib.scrypt(pw.encode(), salt=salt, n=2 ** 14, r=8, p=1).hex()
 
 
+def _atomic_write(path: Path, text: str) -> None:
+    """Write to a temp file, then rename over the target, so a request that reads at the same
+    moment sees the old file or the new one, never a half-written one."""
+    tmp = path.with_name(path.name + ".tmp")
+    tmp.write_text(text, encoding="utf-8")
+    for _ in range(50):
+        try:
+            os.replace(tmp, path)
+            return
+        except PermissionError:  # Windows: a reader has the file open for a few ms
+            time.sleep(0.01)
+    os.replace(tmp, path)
+
+
+def _read_json(path: Path, default):
+    for _ in range(10):
+        try:
+            return json.loads(path.read_text(encoding="utf-8"))
+        except FileNotFoundError:
+            return default
+        except (PermissionError, ValueError):  # being replaced right now: try again
+            time.sleep(0.01)
+    return default
+
+
 def _users() -> dict:
-    try:
-        return json.loads(USERS_FILE.read_text(encoding="utf-8"))
-    except (FileNotFoundError, ValueError):
-        return {}
+    return _read_json(USERS_FILE, {})
 
 
 def _sign(body: str) -> str:
@@ -174,7 +200,7 @@ def signup(b: Signup):
             raise HTTPException(409, "An account with this email already exists")
         users[email] = {"name": name, "salt": salt.hex(), "hash": _hash(b.password, salt), "verified": False}
         USERS_FILE.parent.mkdir(parents=True, exist_ok=True)
-        USERS_FILE.write_text(json.dumps(users), encoding="utf-8")
+        _atomic_write(USERS_FILE, json.dumps(users))
     send_verification(email)
     return {"token": make_token(email), "name": name}
 
@@ -265,7 +291,7 @@ def reset(b: Reset):
             raise HTTPException(400, "This reset link is invalid or has expired")
         salt = secrets.token_bytes(16)
         u.update(salt=salt.hex(), hash=_hash(b.password, salt))
-        USERS_FILE.write_text(json.dumps(users), encoding="utf-8")
+        _atomic_write(USERS_FILE, json.dumps(users))
     FAILS.pop(data["e"], None)
     return {"ok": True}
 
@@ -301,7 +327,7 @@ def verify(b: Token):
         if not valid or data["e"] not in users:
             raise HTTPException(400, "This verification link is invalid or has expired")
         users[data["e"]]["verified"] = True
-        USERS_FILE.write_text(json.dumps(users), encoding="utf-8")
+        _atomic_write(USERS_FILE, json.dumps(users))
     return {"ok": True}
 
 
@@ -366,15 +392,12 @@ class HazardReport(BaseModel):
 
 
 def _load_reports() -> list:
-    try:
-        return json.loads(REPORTS_FILE.read_text(encoding="utf-8"))
-    except (FileNotFoundError, ValueError):
-        return []
+    return _read_json(REPORTS_FILE, [])
 
 
 def _save_reports(reports: list) -> None:
     REPORTS_FILE.parent.mkdir(parents=True, exist_ok=True)
-    REPORTS_FILE.write_text(json.dumps(reports), encoding="utf-8")
+    _atomic_write(REPORTS_FILE, json.dumps(reports))
 
 
 def _save_photo(rid: str, data: str) -> str:
@@ -446,6 +469,65 @@ def admin_reports(request: Request):
     return [{**r, "email": who.get(r.get("uid"), "(deleted user)")} for r in _load_reports()]
 
 
+# ---- Held-out test set built from drivers' confirmed reports. A person must approve each photo's
+# label before it can leave in the export; unreviewed photos are never exported. ----
+EVAL_FILE = DATA_DIR / "eval_review.json"
+EVAL_LOCK = threading.Lock()
+
+
+class EvalReview(BaseModel):
+    id: str
+    status: str  # approved | rejected | pending
+    category: str
+    lat: float
+    lng: float
+    photo: str = ""
+    count: int = 0
+
+
+@app.get("/api/admin/eval")
+def admin_eval(request: Request):
+    require_admin(request)
+    return _read_json(EVAL_FILE, {})
+
+
+@app.post("/api/admin/eval")
+def admin_eval_set(b: EvalReview, request: Request):
+    email = require_admin(request)
+    if b.status not in ("approved", "rejected", "pending") or b.category not in ("pothole", "speedbreaker") \
+            or not (-90 <= b.lat <= 90 and -180 <= b.lng <= 180) or not re.fullmatch(r"[0-9a-f]{1,32}", b.id):
+        raise HTTPException(400, "Invalid review")
+    if not re.fullmatch(r"/report-photos/[0-9a-f]{10}\.jpg", b.photo) or not (PHOTO_DIR / b.photo.rsplit("/", 1)[1]).exists():
+        raise HTTPException(400, "A review needs the photo of an existing report")
+    with EVAL_LOCK:
+        reviews = _read_json(EVAL_FILE, {})
+        reviews[b.id] = {"status": b.status, "category": b.category, "lat": b.lat, "lng": b.lng, "photo": b.photo,
+                         "count": b.count, "reviewer": uid_of(email), "ts": int(time.time())}
+        _atomic_write(EVAL_FILE, json.dumps(reviews))
+    return {"ok": True}
+
+
+@app.get("/api/admin/eval/export")
+def admin_eval_export(request: Request):
+    """Zip of the APPROVED photos plus labels.csv, ready to use as a held-out real-world test set."""
+    require_admin(request)
+    approved = {k: v for k, v in _read_json(EVAL_FILE, {}).items() if v.get("status") == "approved"}
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as z:
+        out = io.StringIO()
+        w = csv.writer(out)
+        w.writerow(["image", "label", "lat", "lng", "confirmed_by_users"])
+        for k, v in approved.items():
+            f = PHOTO_DIR / v["photo"].rsplit("/", 1)[1]
+            if not f.exists():
+                continue
+            z.write(f, f"images/{k}.jpg")
+            w.writerow([f"images/{k}.jpg", v["category"], v["lat"], v["lng"], v["count"]])
+        z.writestr("labels.csv", out.getvalue())
+    return Response(buf.getvalue(), media_type="application/zip",
+                    headers={"Content-Disposition": 'attachment; filename="roadguard_eval_set.zip"'})
+
+
 @app.get("/api/admin/users")
 def admin_users(request: Request):
     require_admin(request)
@@ -472,7 +554,7 @@ def admin_ban(b: Ban, request: Request):
         if email not in users:
             raise HTTPException(404, "No such user")
         users[email]["banned"] = b.banned
-        USERS_FILE.write_text(json.dumps(users), encoding="utf-8")
+        _atomic_write(USERS_FILE, json.dumps(users))
     return {"ok": True}
 
 
@@ -523,7 +605,10 @@ def analyze_routes(req: RouteRequest, report, key: str) -> dict:
         report(1, f"{route_tag} · locating panoramas at {len(waypoints)} points...", slice_start)
         # radius 30: with 10 m sampling a pano is always within reach if the road has coverage,
         # and a small radius stops snapping onto a parallel street
-        pano_chain = build_pano_chain(waypoints_as_dicts, radius=30)
+        gaps: list[int] = []
+        pano_chain = build_pano_chain(waypoints_as_dicts, radius=30, gaps=gaps)
+        unscanned = unscanned_stretches(gaps, waypoints, req.meters)
+        scanned_pct = round(100 * (1 - len(gaps) / max(len(waypoints), 1)))
 
         images_dir = f"output/{key}/route_{i}_images"
         images = download_pano_chain_with_retries(
@@ -552,7 +637,12 @@ def analyze_routes(req: RouteRequest, report, key: str) -> dict:
 
             wp_lat = img.get("lat")
             wp_lng = img.get("lng")
-            offset_km = round(r["distance_km"] * (img_idx + 1) / (len(images) + 1), 2)
+            # real position: waypoints are `meters` apart from the start (old formula spread frames evenly,
+            # which drifts when some stretches have no coverage)
+            if img.get("waypoint_index"):
+                offset_km = round(min(r["distance_km"], (img["waypoint_index"] - 1) * req.meters / 1000), 2)
+            else:
+                offset_km = round(r["distance_km"] * (img_idx + 1) / (len(images) + 1), 2)
 
             cv_img = cv2.imread(image_path)
             if cv_img is None:
@@ -613,6 +703,7 @@ def analyze_routes(req: RouteRequest, report, key: str) -> dict:
                     "adjustedRisk": int(final_risk * 280),  # Scaled to 0-100 gauge
                     "locationOffsetKm": offset_km,
                     "coords": [wp_lat, wp_lng],
+                    "capturedAt": img.get("date"),
                     "bbox": det["bbox"],
                     "imageUrl": f"/output/{key}/route_{i}_hazards/{sub_dir}/{out_name}",
                     "description": f"{h_type.capitalize()} detected at {int(conf*100)}% confidence."
@@ -637,6 +728,8 @@ def analyze_routes(req: RouteRequest, report, key: str) -> dict:
             "distance_km": round(r["distance_km"], 2),
             "duration_min": round(r["duration_min"]),
             "frames_scanned": len(images),
+            "scanned_pct": scanned_pct,
+            "unscanned": unscanned,
             "hazard_count": len(hazards_list),
             "pothole_count": pothole_count,
             "speed_breaker_count": speedbreaker_count,
@@ -666,6 +759,25 @@ def analyze_routes(req: RouteRequest, report, key: str) -> dict:
         "analysis_time_sec": round(time.time() - t_start, 1),
         "routes": evaluated_routes
     }
+
+
+def unscanned_stretches(gaps: list[int], waypoints: list, meters: int, min_run: int = 3) -> list[dict]:
+    """Runs of at least min_run consecutive waypoints (one every `meters` m) that have no Street View
+    panorama. Short single misses are ignored. Each stretch carries its own path for drawing."""
+    runs: list[list[int]] = []
+    for i in sorted(gaps):
+        if runs and i == runs[-1][-1] + 1:
+            runs[-1].append(i)
+        else:
+            runs.append([i])
+    out = []
+    for run in runs:
+        if len(run) < min_run:
+            continue
+        a, b = max(run[0] - 1, 0), min(run[-1] + 1, len(waypoints) - 1)
+        out.append({"from_km": round(a * meters / 1000, 2), "to_km": round(b * meters / 1000, 2),
+                    "path": [[round(lat, 5), round(lng, 5)] for lat, lng in waypoints[a:b + 1]]})
+    return out
 
 
 def merge_sightings(hazards: list[dict], merge_m: float) -> list[dict]:

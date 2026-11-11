@@ -1,5 +1,19 @@
 import React, { useState } from 'react';
 import { MapPin, ImageOff } from 'lucide-react';
+import { useT } from '../services/i18n';
+import { frameAge } from '../services/risk';
+
+// When the Street View image was taken; old images may no longer match the road
+function StreetViewAge({ ym }) {
+  const { t, lang } = useT();
+  const age = frameAge(ym);
+  const date = new Date(`${ym}-01`).toLocaleString(lang, { month: 'short', year: 'numeric' });
+  return (
+    <div data-testid="frame-age" style={{ fontSize: '.8rem', opacity: 0.85, color: age > 3 ? '#b45309' : undefined }}>
+      {t('age.line', { date })}{age > 3 ? ` · ⚠ ${t('age.old', { n: Math.round(age) })}` : ''}
+    </div>
+  );
+}
 
 const SEVERITY_STYLE = {
   High: { badge: 'badge-high', text: 'text-high' },
@@ -72,6 +86,8 @@ export default function DetectedHazards({ hazards, onFocusHazard, focusedHazardI
                     <span className="hazard-type-text">{hazard.type}</span>
                     <span className="hazard-offset">{hazard.locationOffsetKm} km in</span>
                   </div>
+
+                  {!hazard.crowd && hazard.capturedAt && <StreetViewAge ym={hazard.capturedAt} />}
 
                   <dl className="hazard-meta-grid">
                     <div className="meta-cell"><dt>{hazard.crowd ? 'Source' : 'Confidence'}</dt><dd>{hazard.crowd ? `${hazard.sightings} users` : `${hazard.confidence}%`}</dd></div>

@@ -122,11 +122,12 @@ def download_image(pano_id=None, lat=None, lng=None,
     return None
 
 # ── BUILD PANO CHAIN ──────────────────────────────────────────────────────
-def build_pano_chain(waypoints, radius=100, workers=8):
+def build_pano_chain(waypoints, radius=100, workers=8, gaps=None):
     """
     Build chain of connected panoramas from origin to destination.
     Like clicking forward in Google Street View.
     Metadata lookups are free and independent, so they run in parallel.
+    gaps: optional list that receives the index of every waypoint with no panorama at all.
     """
     print("Building panorama chain...\n")
     pano_chain    = []
@@ -152,6 +153,8 @@ def build_pano_chain(waypoints, radius=100, workers=8):
         meta = metas[i]
         if meta.get("status") != "OK":
             print(f"  ⚠ No pano at waypoint {i+1} — skipping")
+            if gaps is not None:
+                gaps.append(i)
             continue
 
         pano_id  = meta.get("pano_id")
@@ -169,6 +172,7 @@ def build_pano_chain(waypoints, radius=100, workers=8):
             "step":           len(pano_chain) + 1,
             "waypoint_index": i + 1,
             "pano_id":        pano_id,
+            "date":           meta.get("date"),  # capture month "YYYY-MM" (absent on some user photos)
             "lat":            pano_lat,
             "lng":            pano_lng,
             "heading":        round(heading, 2),

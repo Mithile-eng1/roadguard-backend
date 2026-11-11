@@ -24,10 +24,10 @@ function segInfo(p, a, b) {
   const t = dx || dy ? Math.max(0, Math.min(1, ((px - ax) * dx + (py - ay) * dy) / (dx * dx + dy * dy))) : 0;
   return { d: Math.hypot(px - ax - t * dx, py - ay - t * dy), t, len: Math.hypot(dx, dy) };
 }
-const distM = (p, q) => segInfo(p, q, q).d;
+export const distM = (p, q) => segInfo(p, q, q).d;
 
 // Closest approach of a point to a polyline: {d metres, km from the start of the route}
-function alongRoute(line, p) {
+export function alongRoute(line, p) {
   let best = { d: Infinity, km: 0 }, run = 0;
   for (let i = 1; i < line.length; i++) {
     const g = segInfo(p, line[i - 1], line[i]);
@@ -48,16 +48,25 @@ export function clusterReports(reports) {
   for (const r of [...reports].sort((x, y) => (x.ts || 0) - (y.ts || 0))) {
     let c = clusters.find((k) => k.category === r.category && distM([r.lat, r.lng], [k.lat, k.lng]) <= 30);
     if (!c) { c = { id: r.id, lat: r.lat, lng: r.lng, category: r.category, votes: new Map(), notes: [], photo: '' }; clusters.push(c); }
-    c.votes.set(r.uid || r.id, r.status || 'present');
+    c.votes.set(r.uid || r.id, { s: r.status || 'present', ts: r.ts || 0 });
     if (r.note) c.notes.push(r.note);
     if (r.photo) c.photo = r.photo;
   }
   return clusters.map(({ votes, notes, ...k }) => {
     const v = [...votes.values()];
-    const count = v.filter((x) => x === 'present').length;
+    const count = v.filter((x) => x.s === 'present').length;
     const gone = v.length - count;
-    return { ...k, notes: notes.slice(-3), count, gone, fixed: gone >= FIXED_AT && gone >= count, confirmed: count >= CONFIRM_AT && count > gone };
+    const fixedAt = Math.max(0, ...v.filter((x) => x.s === 'gone').map((x) => x.ts)); // newest "it's fixed" vote
+    return { ...k, notes: notes.slice(-3), count, gone, fixedAt, fixed: gone >= FIXED_AT && gone >= count, confirmed: count >= CONFIRM_AT && count > gone };
   });
+}
+
+// Street View capture month ("YYYY-MM") -> unix seconds, or 0 when unknown (treated as old)
+export const captureTs = (ym) => (ym ? Date.parse(ym.length === 7 ? `${ym}-01` : ym) / 1000 || 0 : 0);
+// Age of a Street View frame in years (null when the date is unknown)
+export function frameAge(ym, now = Date.now()) {
+  const t = captureTs(ym);
+  return t ? (now / 1000 - t) / (365.25 * 86400) : null;
 }
 
 // Confirmed hazards within 50 m of a route become ordinary hazards (list, directions, counts, score),
@@ -106,13 +115,26 @@ function scoreHazards(hazards, multiplier) {
 export function buildRouteView(analysis, activeRouteIndex, vehicle, reports = []) {
   if (!analysis?.alternativeRoutes?.length) return null;
   const multiplier = clearanceMultiplier(vehicle?.groundClearance || 165);
-  const confirmed = clusterReports(reports).filter((c) => c.confirmed);
-  const withCrowd = (alt) => [...(alt.hazards || []), ...crowdHazards(confirmed, alt.polyline || [], alt.hazards || [])]
-    .sort((x, y) => x.locationOffsetKm - y.locationOffsetKm);
+  const clusters = clusterReports(reports);
+  const confirmed = clusters.filter((c) => c.confirmed);
+  const fixed = clusters.filter((c) => c.fixed);
+  // Newer driver reports outrank old images: a detected hazard whose Street View frame is OLDER than
+  // drivers' "it's fixed" votes at the same spot is dropped from the score and the list.
+  const outranked = (h) => !h.crowd && h.coords && fixed.some((c) => c.category === h.category
+    && distM(h.coords, [c.lat, c.lng]) <= 30 && c.fixedAt > captureTs(h.capturedAt));
+  const withCrowd = (alt) => {
+    const own = alt.hazards || [];
+    const kept = own.filter((h) => !outranked(h));
+    return {
+      list: [...kept, ...crowdHazards(confirmed, alt.polyline || [], kept)].sort((x, y) => x.locationOffsetKm - y.locationOffsetKm),
+      hidden: own.length - kept.length,
+    };
+  };
 
   const alternativeRoutes = analysis.alternativeRoutes.map((alt) => {
-    const s = scoreHazards(withCrowd(alt), multiplier);
-    return { ...alt, hazards: s.hazards, overall_score: s.overallScore, risk_level: s.riskLevel };
+    const w = withCrowd(alt);
+    const s = scoreHazards(w.list, multiplier);
+    return { ...alt, hazards: s.hazards, overall_score: s.overallScore, risk_level: s.riskLevel, hidden_fixed: w.hidden };
   });
 
   const idx = Math.min(activeRouteIndex, alternativeRoutes.length - 1);
@@ -131,6 +153,9 @@ export function buildRouteView(analysis, activeRouteIndex, vehicle, reports = []
     startCoord: active.start_coord || analysis.startCoord,
     endCoord: active.end_coord || analysis.endCoord,
     ...scored,
+    hiddenFixed: active.hidden_fixed || 0,
+    unscanned: active.unscanned || [],
+    scannedPct: active.scanned_pct ?? null,
     vehicleMultiplier: multiplier,
   };
 }

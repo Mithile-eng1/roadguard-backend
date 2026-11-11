@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { Map, AdvancedMarker, useMap, useMapsLibrary } from '@vis.gl/react-google-maps';
 import { LocateFixed, Search, ArrowLeft, Send } from 'lucide-react';
 import { submitReport } from '../services/routeService';
+import { useT } from '../services/i18n';
 
 const DEFAULT_CENTER = { lat: 10.9015, lng: 76.899 };
 const box = { border: '1px solid var(--border-color)', borderRadius: 12, overflow: 'hidden', background: 'var(--bg-card)' };
@@ -28,6 +29,7 @@ function PanTo({ target }) {
 
 // Street View at the chosen point; says so when Google has no imagery nearby
 function StreetViewPane({ pos }) {
+  const { t } = useT();
   const lib = useMapsLibrary('streetView');
   const el = useRef(null);
   const pano = useRef(null);
@@ -61,7 +63,7 @@ function StreetViewPane({ pos }) {
       <div ref={el} style={{ width: '100%', height: '100%' }} />
       {(status || !pos) && (
         <div style={{ position: 'absolute', inset: 0, display: 'grid', placeItems: 'center', padding: 16, textAlign: 'center', background: 'var(--bg-card)', color: 'var(--text-body)' }}>
-          {pos ? status : 'Pick a location to see Street View'}
+          {pos ? status : t('report.pick')}
         </div>
       )}
     </div>
@@ -69,6 +71,7 @@ function StreetViewPane({ pos }) {
 }
 
 export default function ReportPage({ backendUrl, darkMode, onBack, initialCenter, token, onAuthExpired }) {
+  const { t } = useT();
   const geocoding = useMapsLibrary('geocoding');
   const [pos, setPos] = useState(null);
   const [mode, setMode] = useState('');           // 'gps' | 'place'
@@ -119,20 +122,20 @@ export default function ReportPage({ backendUrl, darkMode, onBack, initialCenter
   return (
     <div style={{ width: '100%', maxWidth: 1100, margin: '0 auto', display: 'grid', gap: 16 }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-        <button type="button" className="btn-secondary" onClick={onBack}><ArrowLeft size={15} /> Back</button>
-        <h2 style={{ margin: 0 }}>Report a road hazard</h2>
+        <button type="button" className="btn-secondary" onClick={onBack}><ArrowLeft size={15} /> {t('report.back')}</button>
+        <h2 style={{ margin: 0 }}>{t('report.title')}</h2>
       </div>
 
       <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
         <button type="button" className={mode === 'gps' ? 'btn-action-primary' : 'btn-secondary'} onClick={useGps}>
-          <LocateFixed size={15} /> Use my current location
+          <LocateFixed size={15} /> {t('report.gps')}
         </button>
         <button type="button" className={mode === 'place' ? 'btn-action-primary' : 'btn-secondary'} onClick={() => setMode('place')}>
-          Choose another place
+          {t('report.place')}
         </button>
         {mode === 'place' && (
           <form onSubmit={search} style={{ display: 'flex', gap: 8, flex: 1, minWidth: 220 }}>
-            <input className="form-input" style={{ flex: 1 }} placeholder="Search a place or address" value={query} onChange={(e) => setQuery(e.target.value)} />
+            <input className="form-input" style={{ flex: 1 }} placeholder={t('report.search')} value={query} onChange={(e) => setQuery(e.target.value)} />
             <button type="submit" className="btn-secondary"><Search size={15} /></button>
           </form>
         )}
@@ -158,16 +161,16 @@ export default function ReportPage({ backendUrl, darkMode, onBack, initialCenter
 
       <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
         <select className="form-select" value={category} onChange={(e) => setCategory(e.target.value)}>
-          <option value="pothole">Pothole</option>
-          <option value="speedbreaker">Speed breaker</option>
+          <option value="pothole">{t('report.pothole')}</option>
+          <option value="speedbreaker">{t('report.speedbreaker')}</option>
         </select>
-        <input className="form-input" style={{ flex: 1, minWidth: 200 }} maxLength={200} placeholder="Note (optional)" value={note} onChange={(e) => setNote(e.target.value)} />
+        <input className="form-input" style={{ flex: 1, minWidth: 200 }} maxLength={200} placeholder={t('report.note')} value={note} onChange={(e) => setNote(e.target.value)} />
         <label className="btn-secondary" style={{ cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-          {photo ? <img src={photo} alt="" style={{ height: 22, borderRadius: 3 }} /> : '📷'} {photo ? 'Change photo' : 'Add photo'}
+          {photo ? <img src={photo} alt="" style={{ height: 22, borderRadius: 3 }} /> : '📷'} {photo ? t('report.changePhoto') : t('report.addPhoto')}
           <input type="file" accept="image/*" capture="environment" hidden
             onChange={async (e) => { try { setPhoto(e.target.files[0] ? await shrink(e.target.files[0]) : ''); } catch (x) { setMsg(x.message); } }} />
         </label>
-        <button type="button" className="btn-action-primary" disabled={!pos || busy} onClick={send}><Send size={15} /> Submit report</button>
+        <button type="button" className="btn-action-primary" disabled={!pos || busy} onClick={send}><Send size={15} /> {t('report.submit')}</button>
       </div>
     </div>
   );

@@ -58,6 +58,13 @@ export const fetchMyReports = (b, token) => api(b, '/api/my-reports', { token })
 export const deleteReport = (b, token, id) => api(b, `/api/reports/${id}`, { method: 'DELETE', token });
 export const adminReports = (b, token) => api(b, '/api/admin/reports', { token });
 export const adminUsers = (b, token) => api(b, '/api/admin/users', { token });
+export const adminEval = (b, token) => api(b, '/api/admin/eval', { token });
+export const adminEvalSet = (b, token, review) => api(b, '/api/admin/eval', { method: 'POST', token, body: review });
+export async function downloadEvalZip(backendUrl, token) {
+  const res = await fetch(`${backendUrl.replace(/\/$/, '')}/api/admin/eval/export`, { headers: { Authorization: `Bearer ${token}` } });
+  if (!res.ok) throw new Error(`Export failed (${res.status})`);
+  return res.blob();
+}
 export const adminBan = (b, token, email, banned) => api(b, '/api/admin/ban', { method: 'POST', token, body: { email, banned } });
 
 // Login state lives in localStorage (per-browser convenience; the server re-checks the token)

@@ -4,6 +4,7 @@ import { VEHICLE_DATABASE } from '../data/vehicles';
 import { PRESET_ROUTES } from '../data/sampleRouteData';
 import LoadingProverbs from './LoadingProverbs';
 import RecentRoutes from './RecentRoutes';
+import { useT } from '../services/i18n';
 
 function clearanceNote(mm) {
   if (mm < 150) return 'low — tall speed breakers and deep potholes can hit the underbody';
@@ -33,6 +34,7 @@ export default function HeroSection({
   onOpenHistoryItem,
   onOpenHistory
 }) {
+  const { t } = useT();
   const modified = customClearance != null;
   const catalogueMm = VEHICLE_DATABASE.find(v => v.id === selectedVehicle.id)?.groundClearance ?? selectedVehicle.groundClearance;
 
@@ -86,7 +88,7 @@ export default function HeroSection({
         <div className="hero-right-card-wrapper">
           <div className="plan-route-card">
             <div className="card-header-row">
-              <h2 className="card-title">Plan a route</h2>
+              <h2 className="card-title">{t('hero.plan')}</h2>
               <button type="button" className="preset-pill-btn" onClick={() => setShowPresets(!showPresets)}>
                 Examples <ChevronDown size={14} />
               </button>
@@ -113,11 +115,11 @@ export default function HeroSection({
                 <div className="label-with-action">
                   <label className="form-label" htmlFor="start-input">
                     <span className="location-pin-icon pin-green"><MapPin size={15} /></span>
-                    From
+                    {t('hero.from')}
                   </label>
-                  <button type="button" className="swap-btn-text" onClick={handleSwapLocations} title="Swap">
+                  <button type="button" className="swap-btn-text" onClick={handleSwapLocations} title={t('hero.swap')}>
                     <ArrowRightLeft size={13} />
-                    <span>Swap</span>
+                    <span>{t('hero.swap')}</span>
                   </button>
                 </div>
                 <input
@@ -126,7 +128,7 @@ export default function HeroSection({
                   className="form-input"
                   value={startLocation}
                   onChange={(e) => setStartLocation(e.target.value)}
-                  placeholder="Place, landmark, or lat,lng"
+                  placeholder={t('hero.placeholder')}
                   required
                 />
               </div>
@@ -134,7 +136,7 @@ export default function HeroSection({
               <div className="form-group">
                 <label className="form-label" htmlFor="dest-input">
                   <span className="location-pin-icon pin-red"><MapPin size={15} /></span>
-                  To
+                  {t('hero.to')}
                 </label>
                 <input
                   id="dest-input"
@@ -142,7 +144,7 @@ export default function HeroSection({
                   className="form-input"
                   value={destination}
                   onChange={(e) => setDestination(e.target.value)}
-                  placeholder="Place, landmark, or lat,lng"
+                  placeholder={t('hero.placeholder')}
                   required
                 />
               </div>
@@ -155,13 +157,13 @@ export default function HeroSection({
                 title={canPick ? 'Choose both points by clicking on a map' : 'Needs the Google Maps key (see Settings)'}
               >
                 <MapPinned size={16} />
-                <span>Pick points on a map instead</span>
+                <span>{t('hero.pick')}</span>
               </button>
 
               <div className="form-group">
                 <label className="form-label" htmlFor="vehicle-select">
                   <span className="location-pin-icon pin-blue"><Car size={15} /></span>
-                  Vehicle
+                  {t('hero.vehicle')}
                 </label>
                 <div className="select-wrapper">
                   <select
@@ -228,7 +230,7 @@ export default function HeroSection({
               {!isAnalyzing ? (
                 <>
                   <button type="submit" className="btn-analyze-route" disabled={liveMode && backendOnline === false}>
-                    Analyze route
+                    {t('hero.analyze')}
                   </button>
                   <div className={`form-subtext ${analysisError ? 'form-subtext-error' : ''}`}>
                     {analysisError

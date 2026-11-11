@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import Navbar from './components/Navbar';
 import HeroSection from './components/HeroSection';
 import RouteAnalysisResults from './components/RouteAnalysisResults';
@@ -15,6 +15,8 @@ import ReportPage from './components/ReportPage';
 import AuthPage, { VerifyNotice } from './components/AuthPage';
 import MyReportsPage from './components/MyReportsPage';
 import AdminPage from './components/AdminPage';
+import DriveMode from './components/DriveMode';
+import AuthorityReport from './components/AuthorityReport';
 import { APIProvider } from '@vis.gl/react-google-maps';
 
 import { VEHICLE_DATABASE, DEFAULT_VEHICLE } from './data/vehicles';
@@ -78,14 +80,18 @@ function App() {
   const [apiConfig, setApiConfig] = useState(() => loadLocal('rg_settings', { backendUrl: '', useLiveApi: true }));
 
   const [notice, setNotice] = useState('');
+  const [driveOpen, setDriveOpen] = useState(false);
+  const [authorityOpen, setAuthorityOpen] = useState(false);
   const reloadReports = () => fetchReports(apiConfig.backendUrl).then(setReports);
 
   // account details (verified / admin) come from the server, never from localStorage
+  const meSeq = useRef(0); // only the newest /api/me answer may change state
   const refreshMe = useCallback(() => {
     if (!auth?.token) return Promise.resolve();
+    const mine = ++meSeq.current;
     return fetchMe(apiConfig.backendUrl, auth.token)
-      .then((m) => setAuthState((a) => a && { ...a, ...m }))
-      .catch((e) => { if (e.status === 401) { saveAuth(null); setAuthState(null); } });
+      .then((m) => { if (mine === meSeq.current) setAuthState((a) => a && { ...a, ...m }); })
+      .catch((e) => { if (e.status === 401 && mine === meSeq.current) { saveAuth(null); setAuthState(null); } });
   }, [auth?.token, apiConfig.backendUrl]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { refreshMe(); }, [refreshMe]);
 
@@ -265,7 +271,7 @@ function App() {
             resetToken={resetToken}
             onResetDone={() => { setResetToken(null); window.history.replaceState({}, '', window.location.pathname); }}
             onAuth={(a) => { setAuth(a); if (activeTab === 'login') setActiveTab('home'); }}
-            reason={activeTab === 'login' ? '' : 'Log in to continue.'} />
+            reason={activeTab === 'login' ? '' : 'auth.loginToContinue'} />
         ) : activeTab === 'mine' ? (
           <MyReportsPage backendUrl={apiConfig.backendUrl} token={auth.token} onBack={() => setActiveTab('home')} onChanged={reloadReports} onAuthExpired={() => setAuth(null)} />
         ) : activeTab === 'admin' ? (
@@ -324,6 +330,8 @@ function App() {
               focusedHazard={focusedHazard}
               onSelectHazard={setFocusedHazard}
               onOpenReport={() => setIsReportOpen(true)}
+              onOpenDrive={() => setDriveOpen(true)}
+              onOpenAuthority={() => setAuthorityOpen(true)}
               onShareRoute={handleShareRoute}
               onSelectAlternativeRoute={handleSelectAlternativeRoute}
               activeRouteIndex={routeData.activeRouteIndex}
@@ -359,6 +367,12 @@ function App() {
         historyItems={historyItems}
         reports={reports}
       />
+
+      {driveOpen && routeData && (
+        <DriveMode routeData={routeData} vehicle={selectedVehicle} auth={auth} backendUrl={apiConfig.backendUrl}
+          onClose={() => setDriveOpen(false)} onReported={reloadReports} />
+      )}
+      {authorityOpen && routeData && <AuthorityReport routeData={routeData} onClose={() => setAuthorityOpen(false)} />}
 
       <ReportModal
         isOpen={isReportOpen}
