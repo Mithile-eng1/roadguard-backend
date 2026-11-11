@@ -16,6 +16,7 @@ import AuthPage, { VerifyNotice } from './components/AuthPage';
 import MyReportsPage from './components/MyReportsPage';
 import AdminPage from './components/AdminPage';
 import DriveMode from './components/DriveMode';
+import { useLiveLocation } from './services/useLiveLocation';
 import AuthorityReport from './components/AuthorityReport';
 import { APIProvider } from '@vis.gl/react-google-maps';
 
@@ -81,6 +82,9 @@ function App() {
 
   const [notice, setNotice] = useState('');
   const [driveOpen, setDriveOpen] = useState(false);
+  const [tracking, setTracking] = useState(false);   // live "you are here" dot
+  const [follow, setFollow] = useState(true);         // map keeps the dot centred
+  const { fix: live, error: gpsError } = useLiveLocation(tracking);
   const [authorityOpen, setAuthorityOpen] = useState(false);
   const reloadReports = () => fetchReports(apiConfig.backendUrl).then(setReports);
 
@@ -297,6 +301,13 @@ function App() {
                 reports={reports}
                 onOpenReport={() => setActiveTab('report')}
                 onVote={handleVote}
+                live={live}
+                tracking={tracking}
+                follow={follow}
+                gpsError={gpsError}
+                onTrackingChange={setTracking}
+                onFollowChange={setFollow}
+                driving={driveOpen}
               />
             </div>
             <aside className={`gm-panel ${sheetOpen ? '' : 'collapsed'}`}>
@@ -370,6 +381,8 @@ function App() {
 
       {driveOpen && routeData && (
         <DriveMode routeData={routeData} vehicle={selectedVehicle} auth={auth} backendUrl={apiConfig.backendUrl}
+          live={live} gpsError={gpsError} tracking={tracking}
+          onStartTracking={() => { setTracking(true); setFollow(true); }} onStopTracking={() => setTracking(false)}
           onClose={() => setDriveOpen(false)} onReported={reloadReports} />
       )}
       {authorityOpen && routeData && <AuthorityReport routeData={routeData} onClose={() => setAuthorityOpen(false)} />}

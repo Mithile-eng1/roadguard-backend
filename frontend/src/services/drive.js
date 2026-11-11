@@ -1,6 +1,14 @@
 // Drive mode helpers: what is ahead on the route, when to warn, safe speeds, bump detection.
 import { alongRoute } from './risk.js';
 
+// Compass direction (0-360, 0 = north) of travel from point a to point b, both [lat, lng]
+export function bearing(a, b) {
+  const r = (d) => (d * Math.PI) / 180;
+  const y = Math.sin(r(b[1] - a[1])) * Math.cos(r(b[0]));
+  const x = Math.cos(r(a[0])) * Math.sin(r(b[0])) - Math.sin(r(a[0])) * Math.cos(r(b[0])) * Math.cos(r(b[1] - a[1]));
+  return ((Math.atan2(y, x) * 180) / Math.PI + 360) % 360;
+}
+
 // Suggested speed over a hazard. Lower ground clearance and worse hazards mean slower.
 export function safeSpeedKmh(h, clearanceMm = 165) {
   const band = clearanceMm < 140 ? 0 : clearanceMm < 165 ? 1 : 2;

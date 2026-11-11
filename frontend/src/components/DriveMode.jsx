@@ -1,31 +1,31 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { X, Volume2, VolumeX, Navigation } from 'lucide-react';
 import { useT, SPEECH_LANG } from '../services/i18n';
-import { distM } from '../services/risk';
 import { hazardsAhead, dueWarnings, safeSpeedKmh, withRouteKm, makeBumpDetector } from '../services/drive';
 import { submitReport } from '../services/routeService';
 
-const panel = { position: 'fixed', inset: 0, zIndex: 80, background: '#0b1220', color: '#fff', display: 'flex', flexDirection: 'column', gap: 14, padding: 16, overflowY: 'auto' };
-const card = { background: '#16213a', borderRadius: 14, padding: 14 };
-const btn = (bg) => ({ background: bg, color: '#fff', border: 'none', borderRadius: 10, padding: '12px 16px', fontSize: '1rem', cursor: 'pointer', minHeight: 44 });
+// A sheet at the bottom so the map (with your moving dot) stays visible above it.
+const sheet = { position: 'fixed', left: 0, right: 0, bottom: 0, zIndex: 80, maxHeight: '48vh', overflowY: 'auto', background: '#0b1220', color: '#fff', display: 'flex', flexDirection: 'column', gap: 10, padding: 12, borderRadius: '16px 16px 0 0', boxShadow: '0 -4px 16px rgba(0,0,0,.4)' };
+const card = { background: '#16213a', borderRadius: 12, padding: 12 };
+const btn = (bg) => ({ background: bg, color: '#fff', border: 'none', borderRadius: 10, padding: '10px 14px', fontSize: '1rem', cursor: 'pointer', minHeight: 44 });
 
-// Live help while driving: GPS position on the route, spoken + on-screen warnings, and
-// "did you just hit a bump?" from the phone's motion sensor.
-export default function DriveMode({ routeData, vehicle, auth, backendUrl, onClose, onReported }) {
+// Warnings while driving. The GPS position comes from the app-wide live feed (the same one that moves the
+// dot on the map); this adds spoken + on-screen hazard warnings and "did you just hit a bump?" from the
+// phone's motion sensor.
+export default function DriveMode({ routeData, vehicle, auth, backendUrl, live, gpsError, tracking, onStartTracking, onStopTracking, onClose, onReported }) {
   const { t, lang } = useT();
   const line = routeData.routePolyline || [];
   const hazards = useMemo(() => withRouteKm(line, routeData.hazards || []), [routeData]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const [running, setRunning] = useState(false);
   const [voice, setVoice] = useState(true);
-  const [kmh, setKmh] = useState(null);
-  const [info, setInfo] = useState(null);        // { offRoute, ahead }
-  const [sensor, setSensor] = useState('');       // '' | on | unavailable
+  const [info, setInfo] = useState(null);        // { offRoute, ahead, doneKm }
+  const [sensor, setSensor] = useState('');       // '' | on | denied | unavailable
   const [bump, setBump] = useState(null);         // { lat, lng } while the prompt is open
   const [msg, setMsg] = useState('');
   const [alertText, setAlertText] = useState('');
 
-  const r = useRef({ watch: null, last: null, kmh: null, spoken: new Map(), detector: makeBumpDetector(), wake: null, voice: true, lang, motion: null, t });
+  const r = useRef({ last: null, kmh: null, spoken: new Map(), detector: makeBumpDetector(), wake: null, voice: true, lang, motion: null, t });
   r.current.voice = voice; r.current.lang = lang; r.current.t = t; // always the current language, even mid-drive
 
   const speak = (text) => {
@@ -36,44 +36,44 @@ export default function DriveMode({ routeData, vehicle, auth, backendUrl, onClos
     window.speechSynthesis.speak(u);
   };
 
-  const onPosition = (p) => {
-    const here = [p.coords.latitude, p.coords.longitude];
-    const now = Date.now();
-    let speed = p.coords.speed != null ? p.coords.speed * 3.6 : null;
-    const prev = r.current.last;
-    if (speed == null && prev && now > prev.t) speed = (distM(prev.pos, here) / ((now - prev.t) / 1000)) * 3.6; // GPS gave no speed: estimate
-    r.current.last = { pos: here, t: now };
-    r.current.kmh = speed;
-    setKmh(speed);
+  const onMotion = (ev) => {
+    if (r.current.detector(ev, r.current.kmh) && r.current.last) setBump({ lat: r.current.last[0], lng: r.current.last[1] });
+  };
 
+  // every new GPS fix while driving: what is ahead, and anything to say
+  useEffect(() => {
+    if (!running || !live) return;
+    const here = [live.lat, live.lng];
+    r.current.kmh = live.speed;
+    r.current.last = here;
     const res = hazardsAhead(line, hazards, here);
     setInfo(res);
     const clearance = vehicle?.groundClearance || 165;
+    const tt = r.current.t;
     for (const w of dueWarnings(res.ahead, r.current.spoken)) {
       const v = safeSpeedKmh(w.h, clearance);
-      const tt = r.current.t;
       const type = tt(`type.${w.h.category}`);
       const text = w.stage === 2 ? tt('drive.now', { type, v }) : tt('drive.ahead', { type, m: Math.round(w.distM / 10) * 10, v });
       setAlertText(text);
       speak(text);
     }
-  };
-  const translateType = (c) => t(`type.${c}`);
+  }, [live, running]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const onMotion = (ev) => {
-    if (r.current.detector(ev, r.current.kmh) && r.current.last) {
-      setBump({ lat: r.current.last.pos[0], lng: r.current.last.pos[1] });
-    }
+  const release = () => {
+    if (r.current.motion) window.removeEventListener('devicemotion', r.current.motion);
+    r.current.motion = null;
+    r.current.wake?.release?.().catch?.(() => {});
+    r.current.wake = null;
+    window.speechSynthesis?.cancel();
   };
 
   const start = async () => {
     setMsg('');
-    if (!navigator.geolocation) { setMsg(t('drive.gps')); return; }
-    r.current.watch = navigator.geolocation.watchPosition(onPosition, () => setMsg(t('drive.gps')), { enableHighAccuracy: true, maximumAge: 1000 });
+    onStartTracking();
     try {
       const DM = window.DeviceMotionEvent;
       if (!DM) throw new Error('none');
-      if (typeof DM.requestPermission === 'function' && (await DM.requestPermission()) !== 'granted') throw new Error('denied'); // iPhone
+      if (typeof DM.requestPermission === 'function' && (await DM.requestPermission()) !== 'granted') throw new Error('denied'); // iPhone / new Chrome
       r.current.motion = onMotion;
       window.addEventListener('devicemotion', onMotion);
       setSensor('on');
@@ -82,16 +82,11 @@ export default function DriveMode({ routeData, vehicle, auth, backendUrl, onClos
     setRunning(true);
   };
 
-  const stop = () => {
-    if (r.current.watch != null) navigator.geolocation.clearWatch(r.current.watch);
-    r.current.watch = null;
-    if (r.current.motion) window.removeEventListener('devicemotion', r.current.motion);
-    r.current.motion = null;
-    r.current.wake?.release?.().catch?.(() => {});
-    window.speechSynthesis?.cancel();
-    setRunning(false);
-  };
-  useEffect(() => stop, []); // eslint-disable-line react-hooks/exhaustive-deps
+  const stop = () => { release(); onStopTracking(); setRunning(false); setInfo(null); };
+
+  // tracking switched off from the map button: drive warnings stop too
+  useEffect(() => { if (!tracking && running) { release(); setRunning(false); setInfo(null); } }, [tracking]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => release, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const sendBump = async (category) => {
     const spot = bump; setBump(null);
@@ -105,29 +100,34 @@ export default function DriveMode({ routeData, vehicle, auth, backendUrl, onClos
   };
 
   const next = info?.ahead?.[0];
-  return (
-    <div style={panel} role="dialog" aria-label={t('drive.title')}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-        <Navigation size={20} />
-        <h2 style={{ margin: 0, flex: 1 }}>{t('drive.title')}</h2>
-        <button type="button" style={{ ...btn('#16213a'), padding: 10 }} aria-label={t('drive.close')} onClick={() => { stop(); onClose(); }}><X size={20} /></button>
-      </div>
+  const kmh = live?.speed;
+  const left = info && !info.offRoute && routeData.distanceKm != null ? Math.max(0, routeData.distanceKm - info.doneKm).toFixed(1) : null;
+  const tType = (c) => t(`type.${c}`);
 
-      <div style={{ ...card, textAlign: 'center' }}>
-        <div style={{ fontSize: '3.2rem', fontWeight: 700 }} data-testid="speed">{kmh == null ? '--' : Math.round(kmh)}</div>
-        <div style={{ opacity: 0.7 }}>{t('drive.kmh')}</div>
+  return (
+    <div style={sheet} role="dialog" aria-label={t('drive.title')}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+        <Navigation size={18} />
+        <strong style={{ flex: 1 }}>{t('drive.title')}</strong>
+        <div style={{ textAlign: 'right' }}>
+          <span style={{ fontSize: '1.8rem', fontWeight: 700 }} data-testid="speed">{kmh == null ? '--' : Math.round(kmh)}</span>
+          <span style={{ opacity: 0.7 }}> {t('drive.kmh')}</span>
+        </div>
+        <button type="button" style={{ ...btn('#16213a'), padding: 8, minHeight: 36 }} aria-label={t('drive.close')} onClick={() => { stop(); onClose(); }}><X size={18} /></button>
       </div>
 
       <div style={card} data-testid="drive-status" aria-live="polite">
-        {!running ? t('drive.safety')
+        {gpsError ? t('map.gpsDenied')
+          : !running ? t('drive.safety')
           : info == null ? t('drive.gps')
           : info.offRoute ? t('drive.offRoute')
           : next ? (
             <div>
-              <div style={{ fontSize: '1.3rem', fontWeight: 600 }}>{translateType(next.h.category)} · {Math.max(0, next.distM)} m</div>
-              <div style={{ opacity: 0.8 }}>{t('drive.now', { type: translateType(next.h.category), v: safeSpeedKmh(next.h, vehicle?.groundClearance || 165) })}</div>
+              <div style={{ fontSize: '1.2rem', fontWeight: 600 }}>{tType(next.h.category)} · {Math.max(0, next.distM)} m</div>
+              <div style={{ opacity: 0.8 }}>{t('drive.now', { type: tType(next.h.category), v: safeSpeedKmh(next.h, vehicle?.groundClearance || 165) })}</div>
             </div>
           ) : t('drive.nextNone')}
+        {left != null && <div style={{ opacity: 0.7, marginTop: 4 }} data-testid="km-left">{t('drive.left', { km: left })}</div>}
       </div>
 
       {alertText && running && <div style={{ ...card, background: '#7c2d12' }} role="alert" data-testid="last-warning">{alertText}</div>}
@@ -144,18 +144,14 @@ export default function DriveMode({ routeData, vehicle, auth, backendUrl, onClos
       )}
       {msg && <div style={card} role="status">{msg}</div>}
 
-      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
         {!running
           ? <button type="button" style={btn('#16a34a')} onClick={start}>{t('drive.start')}</button>
           : <button type="button" style={btn('#b91c1c')} onClick={stop}>{t('drive.stop')}</button>}
         <button type="button" style={btn('#16213a')} onClick={() => { setVoice(!voice); if (voice) window.speechSynthesis?.cancel(); }} aria-pressed={voice}>
           {voice ? <Volume2 size={16} /> : <VolumeX size={16} />} {t('drive.voice')}
         </button>
-      </div>
-      {running && <div style={{ opacity: 0.7, fontSize: '.85rem' }}>{sensor === 'on' ? t('drive.sensor') : sensor === 'denied' ? t('drive.sensorDenied') : sensor === 'unavailable' ? t('drive.noSensor') : ''}</div>}
-
-      <div style={{ opacity: 0.8 }}>
-        <b>{t('drive.hazards')}: {hazards.length}</b>
+        <span style={{ opacity: 0.7, fontSize: '.85rem' }}>{running ? (sensor === 'on' ? t('drive.sensor') : sensor === 'denied' ? t('drive.sensorDenied') : sensor === 'unavailable' ? t('drive.noSensor') : '') : ''}</span>
       </div>
     </div>
   );

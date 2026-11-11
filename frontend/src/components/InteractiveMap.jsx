@@ -1,5 +1,5 @@
-import React, { useEffect, useState } from 'react';
-import { Map, AdvancedMarker, InfoWindow, Polyline, ControlPosition, useMap } from '@vis.gl/react-google-maps';
+import React, { useEffect, useRef, useState } from 'react';
+import { Map, AdvancedMarker, AdvancedMarkerAnchorPoint, InfoWindow, Polyline, ControlPosition, useMap } from '@vis.gl/react-google-maps';
 import { ExternalLink } from 'lucide-react';
 import { clusterReports, CONFIRM_AT } from '../services/risk';
 import { useT } from '../services/i18n';
@@ -48,6 +48,55 @@ function MapController({ polyline, focusCoords }) {
   return null;
 }
 
+// Your position, like Google Maps: a blue dot (with an arrow once the direction is known and a circle for the
+// GPS accuracy) that moves as you travel. While `follow` is on the map keeps it centred; dragging the map
+// by hand turns follow off, and the "Recenter" button turns it back on.
+function LiveDot({ live, follow, onUserMove }) {
+  const { t } = useT();
+  const map = useMap();
+  const circle = useRef(null);
+  const zoomed = useRef(false);
+  const moved = useRef(onUserMove);
+  moved.current = onUserMove;
+
+  useEffect(() => {
+    if (!map) return undefined;
+    const l = map.addListener('dragstart', () => moved.current?.());
+    return () => l.remove();
+  }, [map]);
+
+  useEffect(() => {
+    if (!map || !live) { zoomed.current = false; return; }
+    if (follow) {
+      map.panTo({ lat: live.lat, lng: live.lng });
+      if (!zoomed.current || map.getZoom() < 15) map.setZoom(17); // close enough to see the street
+      zoomed.current = true;
+    }
+  }, [map, live, follow]);
+
+  useEffect(() => {
+    if (!map || !live) { circle.current?.setMap(null); circle.current = null; return; }
+    if (!circle.current) circle.current = new google.maps.Circle({ map, strokeOpacity: 0, fillColor: '#4285f4', fillOpacity: 0.15, clickable: false, zIndex: 1 });
+    circle.current.setCenter({ lat: live.lat, lng: live.lng });
+    circle.current.setRadius(Math.max(live.acc || 0, 5));
+  }, [map, live]);
+  useEffect(() => () => circle.current?.setMap(null), []);
+
+  if (!live) return null;
+  return (
+    <AdvancedMarker position={{ lat: live.lat, lng: live.lng }} anchorPoint={AdvancedMarkerAnchorPoint.CENTER} zIndex={40} title={t('map.youAreHere')}>
+      <div style={{ position: 'relative', width: 22, height: 22 }}>
+        {live.heading != null && (
+          <div style={{ position: 'absolute', left: '50%', top: '50%', width: 0, height: 0, transform: `rotate(${live.heading}deg)` }}>
+            <div style={{ position: 'absolute', left: -9, top: -34, borderLeft: '9px solid transparent', borderRight: '9px solid transparent', borderBottom: '20px solid rgba(66,133,244,.6)' }} />
+          </div>
+        )}
+        <div style={{ width: 22, height: 22, borderRadius: '50%', background: '#4285f4', border: '3px solid #fff', boxShadow: '0 0 6px rgba(0,0,0,.45)', boxSizing: 'border-box' }} />
+      </div>
+    </AdvancedMarker>
+  );
+}
+
 // Confirm / "fixed" votes on a crowdsourced hazard
 function VoteButtons({ cluster, onVote }) {
   const { t } = useT();
@@ -73,7 +122,7 @@ function streetViewLink([lat, lng]) {
   return `https://www.google.com/maps?q=${lat},${lng}&layer=c&cbll=${lat},${lng}`;
 }
 
-export default function InteractiveMap({ routeData, focusedHazard, onSelectHazard, onSelectRoute, darkMode, mapsKey, reports = [], onOpenReport, onVote }) {
+export default function InteractiveMap({ routeData, focusedHazard, onSelectHazard, onSelectRoute, darkMode, mapsKey, reports = [], onOpenReport, onVote, live, tracking, follow, gpsError, onTrackingChange, onFollowChange, driving }) {
   const { t } = useT();
   const [openId, setOpenId] = useState(null); // hazard id | 'start' | 'end'
 
@@ -106,7 +155,7 @@ export default function InteractiveMap({ routeData, focusedHazard, onSelectHazar
 
   return (
     <div className="map-view-wrapper">
-      {routeData && <div className="map-legend-overlay">
+      {routeData && !driving && <div className="map-legend-overlay">
         <div className="legend-item"><span className="legend-dot start-dot"></span><span>Start</span></div>
         <div className="legend-item"><span className="legend-dot end-dot"></span><span>End</span></div>
         <div className="legend-item"><span className="legend-triangle high-triangle">▲</span><span>High Risk</span></div>
@@ -124,6 +173,16 @@ export default function InteractiveMap({ routeData, focusedHazard, onSelectHazar
         style={{ position: 'absolute', top: 56, right: 12, zIndex: 5, padding: '8px 12px', borderRadius: 8, border: 'none', cursor: 'pointer', background: '#fff', color: '#111', boxShadow: '0 1px 4px rgba(0,0,0,.3)' }}>
         {t('map.reportBtn')}
       </button>
+      <button type="button" data-testid="my-location"
+        onClick={() => {
+          if (!tracking) { onTrackingChange(true); onFollowChange(true); }
+          else if (!follow) onFollowChange(true);
+          else onTrackingChange(false);
+        }}
+        style={{ position: 'absolute', top: 100, right: 12, zIndex: 5, padding: '8px 12px', borderRadius: 8, border: 'none', cursor: 'pointer', background: tracking && follow ? '#4285f4' : '#fff', color: tracking && follow ? '#fff' : '#111', boxShadow: '0 1px 4px rgba(0,0,0,.3)' }}>
+        {!tracking ? t('map.myLocation') : follow ? t('map.following') : t('map.recenter')}
+      </button>
+      {gpsError && <div role="alert" style={{ position: 'absolute', top: 144, right: 12, zIndex: 5, maxWidth: 260, padding: '8px 10px', borderRadius: 8, background: '#7f1d1d', color: '#fff', fontSize: '.85rem' }}>{t('map.gpsDenied')}</div>}
 
       {/* colorScheme is init-only, hence the key. DEMO_MAP_ID is Google's public id
           (needed for AdvancedMarker); create your own Map ID in Cloud Console for custom styling. */}
@@ -139,6 +198,7 @@ export default function InteractiveMap({ routeData, focusedHazard, onSelectHazar
           onClick={() => setOpenId(null)}
         >
           <MapController polyline={polyline} focusCoords={focusedHazard?.coords} />
+          <LiveDot live={live} follow={follow} onUserMove={() => onFollowChange(false)} />
 
           {/* Non-selected alternatives: dashed, click to compare */}
           {alternatives.map((alt) => (
