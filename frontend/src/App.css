@@ -3560,3 +3560,51 @@ button, .nav-link-btn, .filter-tab-btn { touch-action: manipulation; -webkit-tap
   .authority-head { flex-wrap: wrap; row-gap: 10px; }
   .authority-actions { flex-wrap: wrap; width: 100%; justify-content: flex-start; }
 }
+
+
+/* ==========================================================================
+   20. PHONE, GOOGLE MAPS STYLE: full-screen map, floating search pill,
+   round map buttons, bottom tab bar. (Laptop keeps the top navbar.)
+   ========================================================================== */
+.phone-search, .phone-tabs { display: none; }
+@media (max-width: 768px) {
+  .navbar-container { display: none; }                       /* the pill and the tab bar replace it */
+  .app-root { padding-bottom: calc(58px + env(safe-area-inset-bottom)); box-sizing: border-box; }
+  .app-root.driving { padding-bottom: 0; }
+  .app-root.driving .phone-tabs, .app-root.driving .phone-search { display: none; }
+
+  .phone-search { display: flex; gap: 10px; position: absolute; top: 10px; left: 10px; right: 10px; z-index: 6; }
+  .phone-search-field {
+    flex: 1; min-width: 0; height: 48px; display: flex; align-items: center; gap: 10px; padding: 0 16px;
+    border: 0; border-radius: 24px; background: var(--bg-card); color: var(--text-muted, #64748b);
+    box-shadow: 0 2px 8px rgba(0,0,0,.28); font: inherit; font-size: .98rem; text-align: left; cursor: pointer;
+  }
+  .phone-search-field span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .phone-avatar {
+    flex: 0 0 48px; width: 48px; height: 48px; border-radius: 50%; border: 2px solid #4285f4; background: var(--bg-card);
+    color: var(--text-heading, inherit); font-weight: 700; font-size: 1.05rem; display: grid; place-items: center;
+    box-shadow: 0 2px 8px rgba(0,0,0,.28); cursor: pointer;
+  }
+
+  .phone-tabs {
+    display: flex; position: fixed; left: 0; right: 0; bottom: 0; z-index: 30;
+    padding-bottom: env(safe-area-inset-bottom); background: var(--bg-card); border-top: 1px solid var(--border-color);
+  }
+  .phone-tabs button {
+    flex: 1; height: 58px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px;
+    border: 0; background: none; color: var(--text-muted, #64748b); font: inherit; font-size: .74rem; cursor: pointer;
+  }
+  .phone-tabs button.on { color: var(--text-heading, inherit); font-weight: 700; }
+  .phone-tabs button.on svg { color: #16a34a; }
+
+  /* round map buttons stacked on the right, under the search pill; text hidden, icon via ::before */
+  .map-fab { top: auto !important; right: 12px !important; width: 48px; height: 48px; padding: 0 !important; border-radius: 50% !important;
+    font-size: 0 !important; display: grid; place-items: center; box-shadow: 0 2px 8px rgba(0,0,0,.35) !important; }
+  .map-fab::before { font-size: 1.3rem; line-height: 1; }
+  .map-fab-report { top: 74px !important; }
+  .map-fab-report::before { content: '⚠'; }
+  .map-fab-loc { top: 130px !important; }
+  .map-fab-loc::before { content: '◎'; }
+  .gm-panel { margin: 0; border-radius: 18px 18px 0 0; }
+  .gm-panel.sheet-full { height: calc(100dvh - 58px - 64px - env(safe-area-inset-bottom)); }   /* stops under the search pill */
+}

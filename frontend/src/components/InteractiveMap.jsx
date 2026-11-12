@@ -169,11 +169,11 @@ export default function InteractiveMap({ routeData, focusedHazard, onSelectHazar
         )}
       </div>}
 
-      <button type="button" onClick={onOpenReport}
+      <button type="button" className="map-fab map-fab-report" onClick={onOpenReport}
         style={{ position: 'absolute', top: 56, right: 12, zIndex: 5, padding: '8px 12px', borderRadius: 8, border: 'none', cursor: 'pointer', background: '#fff', color: '#111', boxShadow: '0 1px 4px rgba(0,0,0,.3)' }}>
         {t('map.reportBtn')}
       </button>
-      <button type="button" data-testid="my-location"
+      <button type="button" className="map-fab map-fab-loc" data-testid="my-location"
         onClick={() => {
           if (!tracking) { onTrackingChange(true); onFollowChange(true); }
           else if (!follow) onFollowChange(true);
@@ -194,7 +194,7 @@ export default function InteractiveMap({ routeData, focusedHazard, onSelectHazar
           defaultCenter={toLatLng(center)}
           defaultZoom={14}
           gestureHandling="greedy"
-          mapTypeControlOptions={{ position: ControlPosition.TOP_RIGHT, style: window.innerWidth <= 768 ? 2 : 0 }} /* 2 = compact drop-down on phones */
+          mapTypeControlOptions={{ position: window.innerWidth <= 768 ? ControlPosition.RIGHT_CENTER : ControlPosition.TOP_RIGHT, style: window.innerWidth <= 768 ? 2 : 0 }} /* phones: compact drop-down, mid-right, clear of the search pill */
           fullscreenControl={false}
           onClick={() => setOpenId(null)}
         >

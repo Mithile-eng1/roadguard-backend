@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
+import { PhoneSearch, PhoneTabs } from './components/PhoneChrome';
 import Navbar from './components/Navbar';
 import HeroSection from './components/HeroSection';
 import RouteAnalysisResults from './components/RouteAnalysisResults';
@@ -271,7 +272,7 @@ function App() {
   };
 
   const page = (
-    <div className={`app-root ${activeTab === 'home' ? 'gm-fixed' : ''}`}>
+    <div className={`app-root ${activeTab === 'home' ? 'gm-fixed' : ''}${driveOpen ? ' driving' : ''}`}>
       <Navbar
         activeTab={activeTab}
         setActiveTab={(tab) => (tab === 'history' ? setIsHistoryModalOpen(true) : setActiveTab(tab))}
@@ -333,6 +334,7 @@ function App() {
                 driving={driveOpen}
               />
             </div>
+            <PhoneSearch routeData={routeData} user={auth} onOpenPlan={() => setSheet('half')} onOpenSettings={() => setIsSettingsOpen(true)} />
             <aside className={`gm-panel sheet-${sheet}${driveOpen ? ' drive-open' : ''}`}>
               <button type="button" className="gm-handle" aria-expanded={sheet !== 'peek'}
                 aria-label={routeData ? `${routeData.originAddress || routeData.startLocation} → ${routeData.destinationAddress || routeData.destination}` : t('hero.plan')}
@@ -401,6 +403,7 @@ function App() {
       </main>
 
       {activeTab !== 'home' && <Footer onNavHome={() => setActiveTab('home')} onNavAbout={() => setActiveTab('about')} />}
+      <PhoneTabs activeTab={activeTab} onHome={() => setActiveTab('home')} onHistory={() => setIsHistoryModalOpen(true)} onReport={() => setActiveTab('report')} onAbout={() => setActiveTab('about')} />
 
       <HistoryModal
         isOpen={isHistoryModalOpen}
