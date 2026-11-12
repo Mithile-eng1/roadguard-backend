@@ -69,18 +69,18 @@ export default function AdminPage({ backendUrl, token, onBack, onChanged }) {
             <div><button type="button" className="btn-action-primary" onClick={download}>Download approved set (.zip)</button>
               {' '}<span data-testid="eval-count">{Object.values(evals).filter((v) => v.status === 'approved').length} approved</span></div>
             {candidates.length === 0 ? <div>No confirmed hazards with a photo yet.</div> : (
-              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '.9rem' }}>
+              <table className="rtable" style={{ width: '100%', borderCollapse: 'collapse', fontSize: '.9rem' }}>
                 <thead><tr><th style={cell}>Photo</th><th style={cell}>Label</th><th style={cell}>Drivers</th><th style={cell}>Where</th><th style={cell}>Review</th></tr></thead>
                 <tbody>
                   {candidates.map((c) => {
                     const st = evals[c.id]?.status || 'pending';
                     return (
                       <tr key={c.id}>
-                        <td style={cell}><a href={base + c.photo} target="_blank" rel="noreferrer"><img src={base + c.photo} alt="" style={{ height: 64, borderRadius: 4 }} /></a></td>
-                        <td style={cell}>{c.category === 'pothole' ? 'Pothole' : 'Speed breaker'}</td>
-                        <td style={cell}>{c.count}</td>
-                        <td style={cell}><a href={`https://www.google.com/maps?q=${c.lat},${c.lng}`} target="_blank" rel="noreferrer">{c.lat.toFixed(4)}, {c.lng.toFixed(4)}</a></td>
-                        <td style={cell}>
+                        <td data-label="Photo" style={cell}><a href={base + c.photo} target="_blank" rel="noreferrer"><img src={base + c.photo} alt="" style={{ height: 64, borderRadius: 4 }} /></a></td>
+                        <td data-label="Label" style={cell}>{c.category === 'pothole' ? 'Pothole' : 'Speed breaker'}</td>
+                        <td data-label="Drivers" style={cell}>{c.count}</td>
+                        <td data-label="Where" style={cell}><a href={`https://www.google.com/maps?q=${c.lat},${c.lng}`} target="_blank" rel="noreferrer">{c.lat.toFixed(4)}, {c.lng.toFixed(4)}</a></td>
+                        <td data-label="Review" style={cell}>
                           <b data-testid={`eval-status-${c.id}`}>{st}</b>{' '}
                           <button type="button" className="btn-secondary btn-sm" onClick={() => review(c, 'approved')}>Approve</button>{' '}
                           <button type="button" className="btn-secondary btn-sm" onClick={() => review(c, 'rejected')}>Reject</button>
@@ -93,35 +93,35 @@ export default function AdminPage({ backendUrl, token, onBack, onChanged }) {
             )}
           </div>
         ) : tab === 'reports' ? (
-          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '.9rem' }}>
+          <table className="rtable" style={{ width: '100%', borderCollapse: 'collapse', fontSize: '.9rem' }}>
             <thead><tr><th style={cell}>Date</th><th style={cell}>User</th><th style={cell}>What</th><th style={cell}>Where</th><th style={cell}>Note</th><th style={cell}>Photo</th><th style={cell}></th></tr></thead>
             <tbody>
               {(reports || []).map((r) => (
                 <tr key={r.id} style={blocked.has(r.email) ? { opacity: 0.5 } : undefined}>
-                  <td style={cell}>{new Date(r.ts * 1000).toLocaleString()}</td>
-                  <td style={cell}>{r.email}</td>
-                  <td style={cell}>{r.category === 'pothole' ? 'Pothole' : 'Speed breaker'} · {r.status === 'gone' ? 'fixed' : 'present'}</td>
-                  <td style={cell}><a href={`https://www.google.com/maps?q=${r.lat},${r.lng}`} target="_blank" rel="noreferrer">{r.lat.toFixed(4)}, {r.lng.toFixed(4)}</a></td>
-                  <td style={cell}>{r.note || '—'}</td>
-                  <td style={cell}>{r.photo ? <a href={base + r.photo} target="_blank" rel="noreferrer"><img src={base + r.photo} alt="" style={{ height: 36, borderRadius: 4 }} /></a> : '—'}</td>
-                  <td style={cell}><button type="button" className="btn-secondary btn-sm" title="Delete report"
+                  <td data-label="Date" style={cell}>{new Date(r.ts * 1000).toLocaleString()}</td>
+                  <td data-label="User" style={cell}>{r.email}</td>
+                  <td data-label="What" style={cell}>{r.category === 'pothole' ? 'Pothole' : 'Speed breaker'} · {r.status === 'gone' ? 'fixed' : 'present'}</td>
+                  <td data-label="Where" style={cell}><a href={`https://www.google.com/maps?q=${r.lat},${r.lng}`} target="_blank" rel="noreferrer">{r.lat.toFixed(4)}, {r.lng.toFixed(4)}</a></td>
+                  <td data-label="Note" style={cell}>{r.note || '—'}</td>
+                  <td data-label="Photo" style={cell}>{r.photo ? <a href={base + r.photo} target="_blank" rel="noreferrer"><img src={base + r.photo} alt="" style={{ height: 36, borderRadius: 4 }} /></a> : '—'}</td>
+                  <td data-label="" style={cell}><button type="button" className="btn-secondary btn-sm" title="Delete report"
                     onClick={() => window.confirm('Delete this report?') && act(() => deleteReport(backendUrl, token, r.id))}><Trash2 size={14} /></button></td>
                 </tr>
               ))}
             </tbody>
           </table>
         ) : (
-          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '.9rem' }}>
+          <table className="rtable" style={{ width: '100%', borderCollapse: 'collapse', fontSize: '.9rem' }}>
             <thead><tr><th style={cell}>Name</th><th style={cell}>Email</th><th style={cell}>Verified</th><th style={cell}>Reports</th><th style={cell}>Status</th><th style={cell}></th></tr></thead>
             <tbody>
               {users.map((u) => (
                 <tr key={u.email}>
-                  <td style={cell}>{u.name}{u.isAdmin ? ' (admin)' : ''}</td>
-                  <td style={cell}>{u.email}</td>
-                  <td style={cell}>{u.verified ? 'yes' : 'no'}</td>
-                  <td style={cell}>{u.reports}</td>
-                  <td style={cell}>{u.banned ? 'blocked' : 'active'}</td>
-                  <td style={cell}>{!u.isAdmin && (
+                  <td data-label="Name" style={cell}>{u.name}{u.isAdmin ? ' (admin)' : ''}</td>
+                  <td data-label="Email" style={cell}>{u.email}</td>
+                  <td data-label="Verified" style={cell}>{u.verified ? 'yes' : 'no'}</td>
+                  <td data-label="Reports" style={cell}>{u.reports}</td>
+                  <td data-label="Status" style={cell}>{u.banned ? 'blocked' : 'active'}</td>
+                  <td data-label="" style={cell}>{!u.isAdmin && (
                     <button type="button" className="btn-secondary btn-sm"
                       onClick={() => act(() => adminBan(backendUrl, token, u.email, !u.banned))}>{u.banned ? 'Unblock' : 'Block'}</button>
                   )}</td>

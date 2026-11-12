@@ -3,8 +3,10 @@ import { X, Clock, MapPin, Car, ArrowRight, Trash2 } from 'lucide-react';
 import { VEHICLE_DATABASE, DEFAULT_VEHICLE } from '../data/vehicles';
 import { buildRouteView } from '../services/risk';
 import { displayPlace } from '../services/geo';
+import { useT } from '../services/i18n';
 
 export default function HistoryModal({ isOpen, onClose, onSelectHistoryRoute, onClear, historyItems, reports = [] }) {
+  const { t } = useT();
   if (!isOpen) return null;
 
   return (
@@ -65,7 +67,7 @@ export default function HistoryModal({ isOpen, onClose, onSelectHistoryRoute, on
                         <span>{view.distanceKm} km</span>
                       </div>
                       <div className="history-meta-tag">
-                        <span>{view.hazards.length} hazards · {item.alternativeRoutes.length} routes</span>
+                        <span>{view.hazards.length === 1 ? t('res.hazard1') : t('res.hazards', { n: view.hazards.length })} · {item.alternativeRoutes.length} routes</span>
                       </div>
                       {(() => {
                         const n = view.crowdCount;

@@ -333,7 +333,7 @@ function App() {
                 driving={driveOpen}
               />
             </div>
-            <aside className={`gm-panel sheet-${sheet}`}>
+            <aside className={`gm-panel sheet-${sheet}${driveOpen ? ' drive-open' : ''}`}>
               <button type="button" className="gm-handle" aria-expanded={sheet !== 'peek'}
                 aria-label={routeData ? `${routeData.originAddress || routeData.startLocation} → ${routeData.destinationAddress || routeData.destination}` : t('hero.plan')}
                 onClick={() => setSheet(sheet === 'peek' ? 'half' : sheet === 'half' ? 'full' : 'peek')}>

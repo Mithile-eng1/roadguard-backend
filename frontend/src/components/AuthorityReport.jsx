@@ -38,9 +38,9 @@ export default function AuthorityReport({ routeData, onClose }) {
   return (
     <div className="modal-backdrop-overlay" onClick={onClose}>
       <div className="modal-dialog-box modal-lg" onClick={(e) => e.stopPropagation()} role="dialog" aria-label={t('authority.title')}>
-        <div className="modal-header-row no-print">
+        <div className="modal-header-row no-print authority-head">
           <div className="modal-title-wrap"><h3 className="modal-title">{t('authority.title')}</h3></div>
-          <div className="modal-actions-inline">
+          <div className="modal-actions-inline authority-actions">
             <button type="button" className="btn-secondary btn-sm" onClick={copy}><Copy size={14} /> {copied ? t('authority.copied') : t('authority.copy')}</button>
             <a className="btn-secondary btn-sm" href={mail}><Mail size={14} /> {t('authority.email')}</a>
             <button type="button" className="btn-secondary btn-sm" onClick={() => window.print()}><Printer size={14} /> {t('authority.print')}</button>

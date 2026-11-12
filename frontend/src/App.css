@@ -3538,3 +3538,25 @@ button, .nav-link-btn, .filter-tab-btn { touch-action: manipulation; -webkit-tap
 /* the results buttons (Report, Drive mode, authorities, Share) share the row two by two */
 .gm-panel .results-actions-group { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; width: 100%; }
 .gm-panel .results-actions-group .btn-action-outline { width: 100%; justify-content: center; text-align: center; padding-left: 8px; padding-right: 8px; }
+
+
+/* ==========================================================================
+   19. PHONE: tables become cards, drive mode owns the screen, modal headers wrap
+   (laptop keeps real tables)
+   ========================================================================== */
+@media (max-width: 700px) {
+  .rtable thead { display: none; }
+  .rtable, .rtable tbody, .rtable tr, .rtable td { display: block; width: 100%; }
+  .rtable tr { border: 1px solid var(--border-color); background: var(--bg-card); margin-bottom: 12px; padding: 6px 2px; }
+  .rtable td { border: 0 !important; padding: 5px 12px !important; display: flex; justify-content: space-between; align-items: center; gap: 14px; text-align: right; overflow-wrap: anywhere; }
+  .rtable td::before { content: attr(data-label); flex: 0 0 5.2em; text-align: left; font-weight: 600; color: var(--text-muted, #64748b); }
+  .rtable td[data-label=""]::before { content: none; }
+  .rtable td[data-label=""] { justify-content: flex-end; }
+}
+@media (max-width: 768px) {
+  .gm-panel.drive-open { display: none; }       /* while driving, the map and the drive panel are all you see */
+}
+@media (max-width: 600px) {
+  .authority-head { flex-wrap: wrap; row-gap: 10px; }
+  .authority-actions { flex-wrap: wrap; width: 100%; justify-content: flex-start; }
+}
