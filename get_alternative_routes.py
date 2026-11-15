@@ -18,7 +18,7 @@ import requests
 from dotenv import load_dotenv
 
 load_dotenv()
-API_KEY = os.getenv("GOOGLE_MAPS_API_KEY")
+API_KEY = os.getenv("GOOGLE_SERVER_KEY") or os.getenv("GOOGLE_MAPS_API_KEY")  # server key has no website restriction
 
 
 def get_alternative_routes(origin: str, destination: str) -> list[dict]:

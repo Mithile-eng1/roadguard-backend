@@ -8,7 +8,7 @@ import numpy as np
 from dotenv import load_dotenv
 
 load_dotenv()
-API_KEY = os.getenv("GOOGLE_MAPS_API_KEY")
+API_KEY = os.getenv("GOOGLE_SERVER_KEY") or os.getenv("GOOGLE_MAPS_API_KEY")  # server key has no website restriction
 
 # ── HEADING CALCULATION ───────────────────────────────────────────────────
 def calculate_heading(lat1, lng1, lat2, lng2):
