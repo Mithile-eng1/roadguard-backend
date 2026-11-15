@@ -21,46 +21,62 @@ load_dotenv()
 API_KEY = os.getenv("GOOGLE_SERVER_KEY") or os.getenv("GOOGLE_MAPS_API_KEY")  # server key has no website restriction
 
 
+def _waypoint(text: str) -> dict:
+    """'lat,lng' -> location, anything else -> address (Routes API wants one or the other)."""
+    m = re.fullmatch(r"\s*(-?\d+(?:\.\d+)?)\s*,\s*(-?\d+(?:\.\d+)?)\s*", text)
+    if m:
+        return {"location": {"latLng": {"latitude": float(m[1]), "longitude": float(m[2])}}}
+    return {"address": text}
+
+
+def _secs(d: str) -> float:
+    return float(str(d).rstrip("s") or 0)  # Routes API durations look like "123s"
+
+
 def get_alternative_routes(origin: str, destination: str) -> list[dict]:
-    url = "https://maps.googleapis.com/maps/api/directions/json"
-    params = {
-        "origin": origin,
-        "destination": destination,
-        "alternatives": "true",  # <-- the key difference from the existing get_route()
-        "key": API_KEY,
-    }
-
-    response = requests.get(url, params=params)
-    data = response.json()
-
-    if data["status"] != "OK":
-        raise Exception(f"Directions API error: {data['status']}")
+    # Google's newer Routes API (new Cloud projects can no longer enable the old Directions API)
+    r = requests.post(
+        "https://routes.googleapis.com/directions/v2:computeRoutes",
+        headers={
+            "X-Goog-Api-Key": API_KEY or "",
+            "X-Goog-FieldMask": ("routes.distanceMeters,routes.duration,routes.description,"
+                                 "routes.polyline.encodedPolyline,routes.legs.steps"),
+        },
+        json={"origin": _waypoint(origin), "destination": _waypoint(destination), "travelMode": "DRIVE",
+              "computeAlternativeRoutes": True, "languageCode": "en", "units": "METRIC"},
+        timeout=30,
+    )
+    data = r.json()
+    if r.status_code != 200 or not data.get("routes"):
+        msg = data.get("error", {}).get("message") or "no route found"
+        raise Exception(f"Routes API error: {msg}")
 
     routes = []
     for route in data["routes"]:
         leg = route["legs"][0]
-        # overview_polyline is simplified and cuts corners; step polylines follow the real road
         points = []
         steps = []
         for step in leg["steps"]:
-            points += polyline.decode(step["polyline"]["points"])
-            html = re.sub(r"<div[^>]*>", " - ", step.get("html_instructions", ""))
+            points += polyline.decode(step["polyline"]["encodedPolyline"])
+            nav = step.get("navigationInstruction", {})
+            man = nav.get("maneuver", "").lower().replace("_", "-")
+            ll = step["startLocation"]["latLng"]
             steps.append({
-                "instruction": re.sub(r"\s+", " ", re.sub(r"<[^>]+>", "", html)).strip(),
-                "maneuver": step.get("maneuver", "straight"),
-                "distance_m": step["distance"]["value"],
-                "duration_s": step["duration"]["value"],
-                "location": [step["start_location"]["lat"], step["start_location"]["lng"]],
+                "instruction": re.sub(r"\s+", " ", nav.get("instructions", "")).strip(),
+                "maneuver": man if man not in ("", "maneuver-unspecified", "depart", "name-change") else "straight",
+                "distance_m": step.get("distanceMeters", 0),
+                "duration_s": _secs(step.get("staticDuration", "0s")),
+                "location": [ll["latitude"], ll["longitude"]],
             })
         routes.append({
-            "polyline": route["overview_polyline"]["points"],
+            "polyline": route["polyline"]["encodedPolyline"],
             "points": points,
-            "distance_km": leg["distance"]["value"] / 1000,
-            # resolved by Google -- gives "lat,lng" inputs a human-readable name
-            "start_address": leg.get("start_address", ""),
-            "end_address": leg.get("end_address", ""),
-            "duration_min": leg["duration"]["value"] / 60,
-            "summary": route.get("summary", ""),
+            "distance_km": route["distanceMeters"] / 1000,
+            # the Routes API returns no address text, so show what the user typed (blank for lat,lng)
+            "start_address": "" if _waypoint(origin).get("location") else origin,
+            "end_address": "" if _waypoint(destination).get("location") else destination,
+            "duration_min": _secs(route["duration"]) / 60,
+            "summary": route.get("description", ""),
             "steps": steps,
         })
 
