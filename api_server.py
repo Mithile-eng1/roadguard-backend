@@ -234,7 +234,35 @@ def make_reset_token(email: str, pw_hash: str) -> str:
     return f"{body}.{_sign('reset.' + body)}"
 
 
+def _send_acs(conn: str, sender: str, email: str, subject: str, body: str) -> None:
+    """Azure Communication Services Email over REST, signed with the resource's access key (no Entra app needed).
+    ACS_CONNECTION_STRING looks like 'endpoint=https://x.communication.azure.com/;accesskey=...'."""
+    import hashlib, hmac
+    from urllib import request as _rq
+    parts = dict(p.split("=", 1) for p in conn.split(";") if "=" in p)
+    base = parts["endpoint"].rstrip("/")
+    host = base.split("://", 1)[-1]
+    payload = json.dumps({"senderAddress": sender, "recipients": {"to": [{"address": email}]},
+                          "content": {"subject": subject, "plainText": body}}).encode()
+    path = "/emails:send?api-version=2023-03-31"
+    date = time.strftime("%a, %d %b %Y %H:%M:%S GMT", time.gmtime())
+    digest = base64.b64encode(hashlib.sha256(payload).digest()).decode()
+    sig = base64.b64encode(hmac.new(base64.b64decode(parts["accesskey"]),
+                                    f"POST\n{path}\n{date};{host};{digest}".encode(), hashlib.sha256).digest()).decode()
+    req = _rq.Request(f"{base}{path}", data=payload, method="POST", headers={
+        "Content-Type": "application/json", "x-ms-date": date, "x-ms-content-sha256": digest,
+        "Authorization": f"HMAC-SHA256 SignedHeaders=x-ms-date;host;x-ms-content-sha256&Signature={sig}"})
+    _rq.urlopen(req, timeout=15).read()
+
+
 def send_mail(email: str, subject: str, text: str, link: str) -> None:
+    conn = os.getenv("ACS_CONNECTION_STRING")
+    if conn:  # runs in a thread: log, never crash the request
+        try:
+            _send_acs(conn, os.environ["ACS_SENDER"], email, subject, f"{text}\n\n{link}\n\nIf you did not ask for this, ignore this email.")
+        except Exception as e:
+            print(f"[mail] sending failed: {e!r}", flush=True)
+        return
     if not os.getenv("SMTP_HOST"):
         print(f"[mail] SMTP not configured. '{subject}' link for {email}: {link}", flush=True)
         return
