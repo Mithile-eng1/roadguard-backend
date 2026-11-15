@@ -167,7 +167,7 @@ export default function ReportPage({ backendUrl, darkMode, onBack, initialCenter
         <input className="form-input" style={{ flex: 1, minWidth: 200 }} maxLength={200} placeholder={t('report.note')} value={note} onChange={(e) => setNote(e.target.value)} />
         <label className="btn-secondary" style={{ cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 6 }}>
           {photo ? <img src={photo} alt="" style={{ height: 22, borderRadius: 3 }} /> : '📷'} {photo ? t('report.changePhoto') : t('report.addPhoto')}
-          <input type="file" accept="image/*" capture="environment" hidden
+          <input type="file" accept="image/*" hidden
             onChange={async (e) => { try { setPhoto(e.target.files[0] ? await shrink(e.target.files[0]) : ''); } catch (x) { setMsg(x.message); } }} />
         </label>
         <button type="button" className="btn-action-primary" disabled={!pos || busy} onClick={send}><Send size={15} /> {t('report.submit')}</button>
