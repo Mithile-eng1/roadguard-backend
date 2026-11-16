@@ -25,7 +25,7 @@ import { APIProvider } from '@vis.gl/react-google-maps';
 
 import { VEHICLE_DATABASE, DEFAULT_VEHICLE } from './data/vehicles';
 import { buildRouteView } from './services/risk';
-import { adminRemoveDetection, loadAuth, saveAuth, fetchMe, verifyEmail, submitReport, fetchReports, analyzeRouteViaBackend, evaluateDynamicAlternativeRoutes, checkBackend, fetchMapsKey } from './services/routeService';
+import { adminRemoveDetection, voteRemoval, loadAuth, saveAuth, fetchMe, verifyEmail, submitReport, fetchReports, analyzeRouteViaBackend, evaluateDynamicAlternativeRoutes, checkBackend, fetchMapsKey } from './services/routeService';
 import './App.css';
 
 // localStorage is a convenience only: private windows / blocked storage must not break the app
@@ -139,6 +139,17 @@ function App() {
       await submitReport(apiConfig.backendUrl, { lat: c.lat, lng: c.lng, category: c.category, status }, auth.token);
     } catch (e) { if (e.status === 401) setAuth(null); throw e; }
     await reloadReports();
+  };
+  // "this detection is wrong" vote on a Street View hazard card; 5 different voters remove it for everyone
+  const handleVoteRemove = async (h) => {
+    if (!auth) { setActiveTab('login'); throw new Error('Log in to vote'); }
+    if (auth.verified === false) { setActiveTab('report'); throw new Error('Verify your email first'); }
+    try {
+      const r = await voteRemoval(apiConfig.backendUrl, auth.token, { category: h.category, lat: h.coords[0], lng: h.coords[1] });
+      await reloadReports();
+      if (r.removed) setNotice('Thanks. Enough voters agree, so this detection no longer counts.');
+      return r;
+    } catch (e) { if (e.status === 401) setAuth(null); throw e; }
   };
   const [backendOnline, setBackendOnline] = useState(null); // null = unknown
   // Google Maps JS key: build-time env wins, else the backend hands out its own key
@@ -397,6 +408,8 @@ function App() {
               onFocusHazard={focusHazardOnMap}
               focusedHazardId={focusedHazard?.id}
               isAdmin={!!auth?.isAdmin}
+              votes={reports.votes}
+              onVoteRemove={handleVoteRemove}
               onRemove={(h) => adminRemoveDetection(apiConfig.backendUrl, auth.token, { category: h.category, lat: h.coords[0], lng: h.coords[1] })
                 .then(reloadReports).catch((e) => setNotice(e.message))}
             />

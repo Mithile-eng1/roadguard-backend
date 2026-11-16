@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { MapPin, ImageOff, Trash2 } from 'lucide-react';
 import { useT } from '../services/i18n';
-import { frameAge } from '../services/risk';
+import { frameAge, distM } from '../services/risk';
 
 // When the Street View image was taken; old images may no longer match the road
 function StreetViewAge({ ym }) {
@@ -21,8 +21,18 @@ const SEVERITY_STYLE = {
   Low: { badge: 'badge-low', text: 'text-low' },
 };
 
-export default function DetectedHazards({ hazards, onFocusHazard, focusedHazardId, isAdmin, onRemove }) {
+const NEEDED = 5; // different voters that remove a detection
+
+export default function DetectedHazards({ hazards, onFocusHazard, focusedHazardId, isAdmin, onRemove, votes = [], onVoteRemove }) {
   const [filterType, setFilterType] = useState('all');
+  const [voteMsg, setVoteMsg] = useState({}); // hazard id -> answer after voting
+  const tally = (h) => votes.find((v) => v.category === h.category && distM(h.coords, [v.lat, v.lng]) <= 20)?.count || 0;
+  const vote = async (h) => {
+    try {
+      const r = await onVoteRemove(h);
+      setVoteMsg((m) => ({ ...m, [h.id]: r.removed ? 'Removed by voters' : r.already ? `You already voted (${r.count}/${r.needed})` : `Thanks, ${r.count}/${r.needed} votes` }));
+    } catch (e) { setVoteMsg((m) => ({ ...m, [h.id]: e.message })); }
+  };
 
   const potholes = hazards.filter(h => h.category === 'pothole').length;
   const speedBreakers = hazards.filter(h => h.category === 'speedbreaker').length;
@@ -101,11 +111,19 @@ export default function DetectedHazards({ hazards, onFocusHazard, focusedHazardI
                     <MapPin size={14} />
                     <span>Show on map</span>
                   </button>
-                  {isAdmin && !hazard.crowd && hazard.coords && (
-                    <button type="button" className="btn-secondary btn-sm" style={{ marginTop: 6 }}
-                      onClick={() => window.confirm('Remove this detection? It will stop counting in all scores.') && onRemove(hazard)}>
-                      <Trash2 size={13} /> Not a hazard: remove
-                    </button>
+                  {!hazard.crowd && hazard.coords && onVoteRemove && (
+                    <div style={{ marginTop: 6, display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
+                      <button type="button" className="btn-secondary btn-sm" onClick={() => vote(hazard)}>
+                        👎 Vote: not a hazard ({tally(hazard)}/{NEEDED})
+                      </button>
+                      {isAdmin && (
+                        <button type="button" className="btn-secondary btn-sm"
+                          onClick={() => window.confirm('Remove this detection now? It will stop counting in all scores.') && onRemove(hazard)}>
+                          <Trash2 size={13} /> Remove now (admin)
+                        </button>
+                      )}
+                      {voteMsg[hazard.id] && <small data-testid="vote-msg">{voteMsg[hazard.id]}</small>}
+                    </div>
                   )}
                 </div>
               </div>

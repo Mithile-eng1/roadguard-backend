@@ -676,8 +676,59 @@ def restore_detection(rid: str, request: Request):
     require_admin(request)
     with REMOVED_LOCK:
         items = _read_json(REMOVED_FILE, [])
+        gone = next((i for i in items if i["id"] == rid), None)
         _atomic_write(REMOVED_FILE, json.dumps([i for i in items if i["id"] != rid]))
+        if gone:  # forget the votes too, or the next single vote would remove it again
+            _atomic_write(VOTES_FILE, json.dumps([v for v in _read_json(VOTES_FILE, []) if not _same_spot(v, gone)]))
     return {"ok": True}
+
+
+# ---- Any verified user (admins included) can vote "this detection is wrong". REMOVE_AT different voters remove it
+# for everyone, exactly like an admin removal. One vote per person per spot. ----
+VOTES_FILE = DATA_DIR / "removal_votes.json"  # [{category, lat, lng, uid, ts}]
+REMOVE_AT = 5
+
+
+def _same_spot(a, b):
+    return a["category"] == b["category"] and haversine_meters(a["lat"], a["lng"], b["lat"], b["lng"]) <= 20
+
+
+@app.get("/api/removal-votes")
+def removal_votes():
+    """Public tally per spot: [{category, lat, lng, count}] (who voted is never shown)."""
+    groups: list[dict] = []
+    for v in _read_json(VOTES_FILE, []):
+        g = next((g for g in groups if _same_spot(g, v)), None)
+        if not g:
+            g = {"category": v["category"], "lat": v["lat"], "lng": v["lng"], "voters": set()}
+            groups.append(g)
+        g["voters"].add(v["uid"])
+    return [{"category": g["category"], "lat": g["lat"], "lng": g["lng"], "count": len(g["voters"])} for g in groups]
+
+
+@app.post("/api/removal-votes")
+def vote_removal(b: RemovedDetection, request: Request):
+    email = require_verified(request)
+    if b.category not in ("pothole", "speedbreaker") or not (-90 <= b.lat <= 90 and -180 <= b.lng <= 180):
+        raise HTTPException(400, "Invalid detection")
+    me = {"category": b.category, "lat": b.lat, "lng": b.lng}
+    uid = uid_of(email)
+    with REMOVED_LOCK:
+        removed = _read_json(REMOVED_FILE, [])
+        if any(_same_spot(i, me) for i in removed):
+            return {"ok": True, "removed": True, "count": REMOVE_AT, "needed": REMOVE_AT}
+        votes = _read_json(VOTES_FILE, [])
+        here = [v for v in votes if _same_spot(v, me)]
+        if any(v["uid"] == uid for v in here):
+            return {"ok": True, "removed": False, "already": True, "count": len(here), "needed": REMOVE_AT}
+        votes.append({**me, "uid": uid, "ts": int(time.time())})
+        count = len(here) + 1
+        if count >= REMOVE_AT:
+            removed.append({"id": uuid.uuid4().hex[:10], **me, "by": f"{count} voters", "ts": int(time.time())})
+            _atomic_write(REMOVED_FILE, json.dumps(removed))
+            votes = [v for v in votes if not _same_spot(v, me)]
+        _atomic_write(VOTES_FILE, json.dumps(votes))
+    return {"ok": True, "removed": count >= REMOVE_AT, "count": count, "needed": REMOVE_AT}
 
 
 @app.get("/api/admin/users")
