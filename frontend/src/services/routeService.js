@@ -38,8 +38,12 @@ export async function fetchMapsKey(backendUrl = '') {
 export async function fetchReports(backendUrl = '') {
   const base = backendUrl.replace(/\/$/, '');
   try {
-    const list = await readJson(await fetch(`${base}/api/reports`));
-    return list.map((r) => (r.photo ? { ...r, photo: base + r.photo } : r)); // photos are served by the backend
+    const [list, removed] = await Promise.all([
+      readJson(await fetch(`${base}/api/reports`)),
+      fetch(`${base}/api/removed-detections`).then((r) => (r.ok ? r.json() : [])).catch(() => []),
+    ]);
+    // photos are served by the backend; `removed` = detections an admin marked wrong (buildRouteView skips them)
+    return Object.assign(list.map((r) => (r.photo ? { ...r, photo: base + r.photo } : r)), { removed });
   } catch { return []; }
 }
 
@@ -60,6 +64,8 @@ export const adminReports = (b, token) => api(b, '/api/admin/reports', { token }
 export const adminUsers = (b, token) => api(b, '/api/admin/users', { token });
 export const adminEval = (b, token) => api(b, '/api/admin/eval', { token });
 export const adminEvalSet = (b, token, review) => api(b, '/api/admin/eval', { method: 'POST', token, body: review });
+export const adminRemoveDetection = (b, token, h) => api(b, '/api/admin/removed-detections', { method: 'POST', token, body: h });
+export const adminRestoreDetection = (b, token, id) => api(b, `/api/admin/removed-detections/${id}`, { method: 'DELETE', token });
 export const adminBoxes = (b, token) => api(b, '/api/admin/boxes', { token });
 export const adminBoxesSet = (b, token, body) => api(b, '/api/admin/boxes', { method: 'POST', token, body });
 export const adminBoxesScore = (b, token, photo, conf = 0.25) => api(b, `/api/admin/boxes/score?photo=${encodeURIComponent(photo)}&conf=${conf}`, { token });

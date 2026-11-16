@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { ArrowLeft, Trash2 } from 'lucide-react';
-import { adminReports, adminUsers, adminBan, deleteReport, adminEval, adminEvalSet, downloadEvalZip, adminBoxes, adminBoxesScore } from '../services/routeService';
+import { adminReports, adminUsers, adminBan, deleteReport, adminEval, adminEvalSet, downloadEvalZip, adminBoxes, adminBoxesScore, adminRestoreDetection } from '../services/routeService';
 import BoxEditor from './BoxEditor';
 import { clusterReports } from '../services/risk';
 
@@ -15,11 +15,13 @@ export default function AdminPage({ backendUrl, token, onBack, onChanged }) {
   const [boxes, setBoxes] = useState({}); // drawn ground-truth boxes, by report id
   const [editing, setEditing] = useState(null); // { photo, category } while the box editor is open
   const [total, setTotal] = useState('');
+  const [removed, setRemoved] = useState([]); // detections marked as not-a-hazard
   const [tab, setTab] = useState('reports');
   const [err, setErr] = useState('');
 
   const load = () => Promise.all([adminReports(backendUrl, token), adminUsers(backendUrl, token), adminEval(backendUrl, token), adminBoxes(backendUrl, token)])
     .then(([r, u, e, bx]) => { setReports(r.sort((a, b) => b.ts - a.ts)); setUsers(u); setEvals(e); setBoxes(bx); })
+    .then(() => fetch(`${backendUrl.replace(/\/$/, '')}/api/removed-detections`).then((r) => r.json()).then(setRemoved))
     .catch((e) => setErr(e.message));
   useEffect(() => { load(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -80,10 +82,28 @@ export default function AdminPage({ backendUrl, token, onBack, onChanged }) {
         <button type="button" className={tab === 'reports' ? 'btn-action-primary' : 'btn-secondary'} onClick={() => setTab('reports')}>Reports</button>
         <button type="button" className={tab === 'users' ? 'btn-action-primary' : 'btn-secondary'} onClick={() => setTab('users')}>Users</button>
         <button type="button" className={tab === 'eval' ? 'btn-action-primary' : 'btn-secondary'} onClick={() => setTab('eval')}>Test set</button>
+        <button type="button" className={tab === 'removed' ? 'btn-action-primary' : 'btn-secondary'} onClick={() => setTab('removed')}>Removed detections</button>
       </div>
 
       <div style={{ overflowX: 'auto' }}>
-        {tab === 'eval' ? (
+        {tab === 'removed' ? (
+          <div style={{ display: 'grid', gap: 10 }}>
+            <p style={{ margin: 0 }}>Detections you marked as not a hazard (use <b>Not a hazard: remove</b> on a hazard card). They do not count in any score. Restore one to count it again.</p>
+            {removed.length === 0 ? <div data-testid="removed-empty">Nothing removed.</div> : (
+              <table className="rtable" style={{ width: '100%', borderCollapse: 'collapse', fontSize: '.9rem' }}>
+                <thead><tr><th style={cell}>What</th><th style={cell}>Where</th><th style={cell}>Removed</th><th style={cell}></th></tr></thead>
+                <tbody>{removed.map((r) => (
+                  <tr key={r.id}>
+                    <td data-label="What" style={cell}>{r.category === 'pothole' ? 'Pothole' : 'Speed breaker'}</td>
+                    <td data-label="Where" style={cell}><a href={`https://www.google.com/maps?q=${r.lat},${r.lng}`} target="_blank" rel="noreferrer">{r.lat.toFixed(5)}, {r.lng.toFixed(5)}</a></td>
+                    <td data-label="Removed" style={cell}>{new Date(r.ts * 1000).toLocaleString()}</td>
+                    <td data-label="" style={cell}><button type="button" className="btn-secondary btn-sm" onClick={() => act(() => adminRestoreDetection(backendUrl, token, r.id))}>Restore</button></td>
+                  </tr>
+                ))}</tbody>
+              </table>
+            )}
+          </div>
+        ) : tab === 'eval' ? (
           <div style={{ display: 'grid', gap: 10 }}>
             <p style={{ margin: 0 }}>
               Photos of hazards that 3+ drivers confirmed. Look at each photo and approve it only if it really shows the labelled hazard.

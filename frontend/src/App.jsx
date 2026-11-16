@@ -25,7 +25,7 @@ import { APIProvider } from '@vis.gl/react-google-maps';
 
 import { VEHICLE_DATABASE, DEFAULT_VEHICLE } from './data/vehicles';
 import { buildRouteView } from './services/risk';
-import { loadAuth, saveAuth, fetchMe, verifyEmail, submitReport, fetchReports, analyzeRouteViaBackend, evaluateDynamicAlternativeRoutes, checkBackend, fetchMapsKey } from './services/routeService';
+import { adminRemoveDetection, loadAuth, saveAuth, fetchMe, verifyEmail, submitReport, fetchReports, analyzeRouteViaBackend, evaluateDynamicAlternativeRoutes, checkBackend, fetchMapsKey } from './services/routeService';
 import './App.css';
 
 // localStorage is a convenience only: private windows / blocked storage must not break the app
@@ -396,6 +396,9 @@ function App() {
               hazards={routeData?.hazards || []}
               onFocusHazard={focusHazardOnMap}
               focusedHazardId={focusedHazard?.id}
+              isAdmin={!!auth?.isAdmin}
+              onRemove={(h) => adminRemoveDetection(apiConfig.backendUrl, auth.token, { category: h.category, lat: h.coords[0], lng: h.coords[1] })
+                .then(reloadReports).catch((e) => setNotice(e.message))}
             />
             </aside>
           </div>

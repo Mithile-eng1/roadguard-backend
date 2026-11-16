@@ -122,8 +122,9 @@ export function buildRouteView(analysis, activeRouteIndex, vehicle, reports = []
   // drivers' "it's fixed" votes at the same spot is dropped from the score and the list.
   const outranked = (h) => !h.crowd && h.coords && fixed.some((c) => c.category === h.category
     && distM(h.coords, [c.lat, c.lng]) <= 30 && c.fixedAt > captureTs(h.capturedAt));
+  const wrong = (h) => !h.crowd && h.coords && (reports.removed || []).some((r) => r.category === h.category && distM(h.coords, [r.lat, r.lng]) <= 20);
   const withCrowd = (alt) => {
-    const own = alt.hazards || [];
+    const own = (alt.hazards || []).filter((h) => !wrong(h)); // admin-removed detections never count
     const kept = own.filter((h) => !outranked(h));
     return {
       list: [...kept, ...crowdHazards(confirmed, alt.polyline || [], kept)].sort((x, y) => x.locationOffsetKm - y.locationOffsetKm),

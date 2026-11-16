@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { MapPin, ImageOff } from 'lucide-react';
+import { MapPin, ImageOff, Trash2 } from 'lucide-react';
 import { useT } from '../services/i18n';
 import { frameAge } from '../services/risk';
 
@@ -21,7 +21,7 @@ const SEVERITY_STYLE = {
   Low: { badge: 'badge-low', text: 'text-low' },
 };
 
-export default function DetectedHazards({ hazards, onFocusHazard, focusedHazardId }) {
+export default function DetectedHazards({ hazards, onFocusHazard, focusedHazardId, isAdmin, onRemove }) {
   const [filterType, setFilterType] = useState('all');
 
   const potholes = hazards.filter(h => h.category === 'pothole').length;
@@ -101,6 +101,12 @@ export default function DetectedHazards({ hazards, onFocusHazard, focusedHazardI
                     <MapPin size={14} />
                     <span>Show on map</span>
                   </button>
+                  {isAdmin && !hazard.crowd && hazard.coords && (
+                    <button type="button" className="btn-secondary btn-sm" style={{ marginTop: 6 }}
+                      onClick={() => window.confirm('Remove this detection? It will stop counting in all scores.') && onRemove(hazard)}>
+                      <Trash2 size={13} /> Not a hazard: remove
+                    </button>
+                  )}
                 </div>
               </div>
             );

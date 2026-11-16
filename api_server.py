@@ -640,6 +640,46 @@ def admin_boxes_score(photo: str, request: Request, conf: float = 0.25):
             "detections": out, "conf": conf}
 
 
+# ---- Detections an admin marked as wrong (not a real hazard). Everyone's scores skip a detected hazard of the
+# same type within 20 m of an entry. Public to read (the browser scores), admin-only to change. ----
+REMOVED_FILE = DATA_DIR / "removed_detections.json"
+REMOVED_LOCK = threading.Lock()
+
+
+class RemovedDetection(BaseModel):
+    category: str
+    lat: float
+    lng: float
+
+
+@app.get("/api/removed-detections")
+def list_removed_detections():
+    return _read_json(REMOVED_FILE, [])
+
+
+@app.post("/api/admin/removed-detections")
+def remove_detection(b: RemovedDetection, request: Request):
+    email = require_admin(request)
+    if b.category not in ("pothole", "speedbreaker") or not (-90 <= b.lat <= 90 and -180 <= b.lng <= 180):
+        raise HTTPException(400, "Invalid detection")
+    with REMOVED_LOCK:
+        items = _read_json(REMOVED_FILE, [])
+        if not any(i["category"] == b.category and haversine_meters(i["lat"], i["lng"], b.lat, b.lng) <= 20 for i in items):
+            items.append({"id": uuid.uuid4().hex[:10], "category": b.category, "lat": b.lat, "lng": b.lng,
+                          "by": uid_of(email), "ts": int(time.time())})
+            _atomic_write(REMOVED_FILE, json.dumps(items))
+    return {"ok": True}
+
+
+@app.delete("/api/admin/removed-detections/{rid}")
+def restore_detection(rid: str, request: Request):
+    require_admin(request)
+    with REMOVED_LOCK:
+        items = _read_json(REMOVED_FILE, [])
+        _atomic_write(REMOVED_FILE, json.dumps([i for i in items if i["id"] != rid]))
+    return {"ok": True}
+
+
 @app.get("/api/admin/users")
 def admin_users(request: Request):
     require_admin(request)
