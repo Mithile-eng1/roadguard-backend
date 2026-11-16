@@ -60,6 +60,9 @@ export const adminReports = (b, token) => api(b, '/api/admin/reports', { token }
 export const adminUsers = (b, token) => api(b, '/api/admin/users', { token });
 export const adminEval = (b, token) => api(b, '/api/admin/eval', { token });
 export const adminEvalSet = (b, token, review) => api(b, '/api/admin/eval', { method: 'POST', token, body: review });
+export const adminBoxes = (b, token) => api(b, '/api/admin/boxes', { token });
+export const adminBoxesSet = (b, token, body) => api(b, '/api/admin/boxes', { method: 'POST', token, body });
+export const adminBoxesScore = (b, token, photo, conf = 0.25) => api(b, `/api/admin/boxes/score?photo=${encodeURIComponent(photo)}&conf=${conf}`, { token });
 export async function downloadEvalZip(backendUrl, token) {
   const res = await fetch(`${backendUrl.replace(/\/$/, '')}/api/admin/eval/export`, { headers: { Authorization: `Bearer ${token}` } });
   if (!res.ok) throw new Error(`Export failed (${res.status})`);

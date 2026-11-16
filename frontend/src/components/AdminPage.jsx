@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { ArrowLeft, Trash2 } from 'lucide-react';
-import { adminReports, adminUsers, adminBan, deleteReport, adminEval, adminEvalSet, downloadEvalZip } from '../services/routeService';
+import { adminReports, adminUsers, adminBan, deleteReport, adminEval, adminEvalSet, downloadEvalZip, adminBoxes, adminBoxesScore } from '../services/routeService';
+import BoxEditor from './BoxEditor';
 import { clusterReports } from '../services/risk';
 
 const cell = { padding: '8px 10px', borderBottom: '1px solid var(--border-color)', textAlign: 'left' };
@@ -11,11 +12,14 @@ export default function AdminPage({ backendUrl, token, onBack, onChanged }) {
   const [reports, setReports] = useState(null);
   const [users, setUsers] = useState([]);
   const [evals, setEvals] = useState({});
+  const [boxes, setBoxes] = useState({}); // drawn ground-truth boxes, by report id
+  const [editing, setEditing] = useState(null); // { photo, category } while the box editor is open
+  const [total, setTotal] = useState('');
   const [tab, setTab] = useState('reports');
   const [err, setErr] = useState('');
 
-  const load = () => Promise.all([adminReports(backendUrl, token), adminUsers(backendUrl, token), adminEval(backendUrl, token)])
-    .then(([r, u, e]) => { setReports(r.sort((a, b) => b.ts - a.ts)); setUsers(u); setEvals(e); })
+  const load = () => Promise.all([adminReports(backendUrl, token), adminUsers(backendUrl, token), adminEval(backendUrl, token), adminBoxes(backendUrl, token)])
+    .then(([r, u, e, bx]) => { setReports(r.sort((a, b) => b.ts - a.ts)); setUsers(u); setEvals(e); setBoxes(bx); })
     .catch((e) => setErr(e.message));
   useEffect(() => { load(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -28,6 +32,23 @@ export default function AdminPage({ backendUrl, token, onBack, onChanged }) {
   // confirmed hazards with a photo are candidates for a held-out real-world test set
   const candidates = clusters.filter((c) => c.confirmed && c.photo);
   const review = (c, status) => act(() => adminEvalSet(backendUrl, token, { id: c.id, status, category: c.category, lat: c.lat, lng: c.lng, photo: c.photo, count: c.count }));
+  const boxesOf = (photo) => boxes[(photo || '').replace(/^.*\//, '').replace('.jpg', '')];
+  const boxBtn = (photo, category) => photo && (
+    <button type="button" className="btn-secondary btn-sm" onClick={() => setEditing({ photo, category })}>
+      {boxesOf(photo) ? `Boxes (${boxesOf(photo).boxes.length})` : 'Draw boxes'}
+    </button>
+  );
+  // Score the detector on every photo that has drawn boxes: total found / drawn and extra detections
+  const scoreAll = async () => {
+    try {
+      let found = 0, drawn = 0, extra = 0; setTotal('Scoring…');
+      for (const id of Object.keys(boxes)) {
+        const r = await adminBoxesScore(backendUrl, token, `/report-photos/${id}.jpg`).catch(() => null);
+        if (r) { found += r.found; drawn += r.drawn; extra += r.extra; }
+      }
+      setTotal(drawn ? `Model found ${found} of ${drawn} drawn hazards (${Math.round((100 * found) / drawn)}% recall) with ${extra} extra detection(s)${found + extra ? `, precision ${Math.round((100 * found) / (found + extra))}%` : ''}.` : 'No boxes drawn yet.');
+    } catch (e) { setErr(e.message); }
+  };
   const download = async () => {
     try {
       const url = URL.createObjectURL(await downloadEvalZip(backendUrl, token));
@@ -43,6 +64,8 @@ export default function AdminPage({ backendUrl, token, onBack, onChanged }) {
         <h2 style={{ margin: 0 }}>Admin</h2>
       </div>
       {err && <div role="alert" style={{ color: '#ef4444' }}>{err}</div>}
+      {editing && <BoxEditor backendUrl={backendUrl} token={token} photo={editing.photo} category={editing.category}
+        saved={boxesOf(editing.photo)} onClose={() => setEditing(null)} onSaved={load} />}
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 12 }}>
         <div style={stat}><b>{users.length}</b><div>accounts</div></div>
@@ -67,7 +90,9 @@ export default function AdminPage({ backendUrl, token, onBack, onChanged }) {
               Only <b>approved</b> photos go into the download, to be used as a held-out real-world test set. Never retrain on unreviewed photos.
             </p>
             <div><button type="button" className="btn-action-primary" onClick={download}>Download approved set (.zip)</button>
-              {' '}<span data-testid="eval-count">{Object.values(evals).filter((v) => v.status === 'approved').length} approved</span></div>
+              {' '}<span data-testid="eval-count">{Object.values(evals).filter((v) => v.status === 'approved').length} approved</span>
+              {' '}<button type="button" className="btn-secondary" onClick={scoreAll} disabled={!Object.keys(boxes).length}>Score all drawn photos</button></div>
+            {total && <div data-testid="box-total">{total}</div>}
             {candidates.length === 0 ? <div>No confirmed hazards with a photo yet.</div> : (
               <table className="rtable" style={{ width: '100%', borderCollapse: 'collapse', fontSize: '.9rem' }}>
                 <thead><tr><th style={cell}>Photo</th><th style={cell}>Label</th><th style={cell}>Drivers</th><th style={cell}>Where</th><th style={cell}>Review</th></tr></thead>
@@ -76,7 +101,7 @@ export default function AdminPage({ backendUrl, token, onBack, onChanged }) {
                     const st = evals[c.id]?.status || 'pending';
                     return (
                       <tr key={c.id}>
-                        <td data-label="Photo" style={cell}><a href={base + c.photo} target="_blank" rel="noreferrer"><img src={base + c.photo} alt="" style={{ height: 64, borderRadius: 4 }} /></a></td>
+                        <td data-label="Photo" style={cell}><a href={base + c.photo} target="_blank" rel="noreferrer"><img src={base + c.photo} alt="" style={{ height: 64, borderRadius: 4 }} /></a> {boxBtn(c.photo, c.category)}</td>
                         <td data-label="Label" style={cell}>{c.category === 'pothole' ? 'Pothole' : 'Speed breaker'}</td>
                         <td data-label="Drivers" style={cell}>{c.count}</td>
                         <td data-label="Where" style={cell}><a href={`https://www.google.com/maps?q=${c.lat},${c.lng}`} target="_blank" rel="noreferrer">{c.lat.toFixed(4)}, {c.lng.toFixed(4)}</a></td>
@@ -103,7 +128,7 @@ export default function AdminPage({ backendUrl, token, onBack, onChanged }) {
                   <td data-label="What" style={cell}>{r.category === 'pothole' ? 'Pothole' : 'Speed breaker'} · {r.status === 'gone' ? 'fixed' : 'present'}</td>
                   <td data-label="Where" style={cell}><a href={`https://www.google.com/maps?q=${r.lat},${r.lng}`} target="_blank" rel="noreferrer">{r.lat.toFixed(4)}, {r.lng.toFixed(4)}</a></td>
                   <td data-label="Note" style={cell}>{r.note || '—'}</td>
-                  <td data-label="Photo" style={cell}>{r.photo ? <a href={base + r.photo} target="_blank" rel="noreferrer"><img src={base + r.photo} alt="" style={{ height: 36, borderRadius: 4 }} /></a> : '—'}</td>
+                  <td data-label="Photo" style={cell}>{r.photo ? <><a href={base + r.photo} target="_blank" rel="noreferrer"><img src={base + r.photo} alt="" style={{ height: 36, borderRadius: 4 }} /></a> {boxBtn(r.photo, r.category)}</> : '—'}</td>
                   <td data-label="" style={cell}><button type="button" className="btn-secondary btn-sm" title="Delete report"
                     onClick={() => window.confirm('Delete this report?') && act(() => deleteReport(backendUrl, token, r.id))}><Trash2 size={14} /></button></td>
                 </tr>

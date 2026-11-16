@@ -540,6 +540,7 @@ def admin_eval_export(request: Request):
     """Zip of the APPROVED photos plus labels.csv, ready to use as a held-out real-world test set."""
     require_admin(request)
     approved = {k: v for k, v in _read_json(EVAL_FILE, {}).items() if v.get("status") == "approved"}
+    boxes = _read_json(BOXES_FILE, {})
     buf = io.BytesIO()
     with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as z:
         out = io.StringIO()
@@ -551,9 +552,92 @@ def admin_eval_export(request: Request):
                 continue
             z.write(f, f"images/{k}.jpg")
             w.writerow([f"images/{k}.jpg", v["category"], v["lat"], v["lng"], v["count"]])
+            gt = boxes.get(v["photo"].rsplit("/", 1)[1][:-4])  # drawn boxes -> YOLO label file (class 0 pothole, 1 speedbreaker)
+            if gt:
+                cls = 0 if gt["category"] == "pothole" else 1
+                z.writestr(f"labels/{k}.txt", "".join(f"{cls} {x + bw / 2:.6f} {y + bh / 2:.6f} {bw:.6f} {bh:.6f}\n"
+                                                      for x, y, bw, bh in gt["boxes"]))
         z.writestr("labels.csv", out.getvalue())
+        z.writestr("classes.txt", "pothole\nspeedbreaker\n")
     return Response(buf.getvalue(), media_type="application/zip",
                     headers={"Content-Disposition": 'attachment; filename="roadguard_eval_set.zip"'})
+
+
+# ---- The admin draws the true boxes on a driver's photo; the detector is then scored against them. ----
+BOXES_FILE = DATA_DIR / "photo_boxes.json"  # {report id: {category, boxes: [[x, y, w, h]...] (0-1, top-left origin)}}
+BOXES_LOCK = threading.Lock()
+
+
+class PhotoBoxes(BaseModel):
+    photo: str
+    category: str
+    boxes: list[list[float]] = []
+
+
+def _photo_file(photo: str) -> tuple[str, Path]:
+    m = re.fullmatch(r"/report-photos/([0-9a-f]{10})\.jpg", photo)
+    f = PHOTO_DIR / f"{m[1]}.jpg" if m else None
+    if not f or not f.exists():
+        raise HTTPException(400, "Unknown photo")
+    return m[1], f
+
+
+@app.get("/api/admin/boxes")
+def admin_boxes(request: Request):
+    require_admin(request)
+    return _read_json(BOXES_FILE, {})
+
+
+@app.post("/api/admin/boxes")
+def admin_boxes_set(b: PhotoBoxes, request: Request):
+    email = require_admin(request)
+    pid, _ = _photo_file(b.photo)
+    ok = len(b.boxes) <= 20 and all(len(x) == 4 and 0 <= x[0] <= 1 and 0 <= x[1] <= 1 and x[2] > 0.005 and x[3] > 0.005
+                                    and x[0] + x[2] <= 1.001 and x[1] + x[3] <= 1.001 for x in b.boxes)
+    if b.category not in ("pothole", "speedbreaker") or not ok:
+        raise HTTPException(400, "Invalid boxes")
+    with BOXES_LOCK:
+        data = _read_json(BOXES_FILE, {})
+        if b.boxes:
+            data[pid] = {"category": b.category, "boxes": b.boxes, "reviewer": uid_of(email), "ts": int(time.time())}
+        else:
+            data.pop(pid, None)
+        _atomic_write(BOXES_FILE, json.dumps(data))
+    return {"ok": True}
+
+
+def _iou(a, b):  # boxes as [x, y, w, h]
+    ix = max(0.0, min(a[0] + a[2], b[0] + b[2]) - max(a[0], b[0]))
+    iy = max(0.0, min(a[1] + a[3], b[1] + b[3]) - max(a[1], b[1]))
+    inter = ix * iy
+    return inter / (a[2] * a[3] + b[2] * b[3] - inter) if inter else 0.0
+
+
+@app.get("/api/admin/boxes/score")
+def admin_boxes_score(photo: str, request: Request, conf: float = 0.25):
+    """Run the detector on one photo and compare with the drawn boxes (a match = same class, overlap IoU >= 0.3)."""
+    require_admin(request)
+    pid, f = _photo_file(photo)
+    gt = _read_json(BOXES_FILE, {}).get(pid)
+    if not gt:
+        raise HTTPException(400, "Draw and save boxes on this photo first")
+    img = cv2.imread(str(f))
+    h, w = img.shape[:2]
+    dets = sorted((d for d in detect_hazards(str(f), conf_threshold=conf) if d["hazard_type"] == gt["category"]),
+                  key=lambda d: -d["confidence"])
+    free = list(range(len(gt["boxes"])))
+    out = []
+    for d in dets:
+        x1, y1, x2, y2 = d["bbox"]
+        nb = [x1 / w, y1 / h, (x2 - x1) / w, (y2 - y1) / h]
+        best = max(free, key=lambda i: _iou(nb, gt["boxes"][i]), default=None)
+        hit = best is not None and _iou(nb, gt["boxes"][best]) >= 0.3
+        if hit:
+            free.remove(best)
+        out.append({"box": nb, "confidence": d["confidence"], "hit": hit})
+    tp = sum(o["hit"] for o in out)
+    return {"drawn": len(gt["boxes"]), "found": tp, "missed": len(gt["boxes"]) - tp, "extra": len(out) - tp,
+            "detections": out, "conf": conf}
 
 
 @app.get("/api/admin/users")

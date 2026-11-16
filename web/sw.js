@@ -1,6 +1,6 @@
 // RoadGuard service worker: keeps the app shell so the app opens offline. API, saved-result images and
 // report photos always go to the network (they must be fresh). Static files: cache first, refreshed in the background.
-const CACHE = 'roadguard-shell-v4';
+const CACHE = 'roadguard-shell-v5';
 
 self.addEventListener('install', (e) => {
   self.skipWaiting();
