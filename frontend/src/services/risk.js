@@ -39,10 +39,10 @@ export function alongRoute(line, p) {
 
 // Reports of the same type within 30 m are one hazard. Each user's LATEST vote counts ("present" =
 // I see it, "gone" = it was fixed). Confirmed = 3+ different users still say present (and more
-// than say gone); fixed = 2+ users say gone. Only confirmed hazards touch scores and lists.
+// than say gone); fixed = 5+ users say gone. Only confirmed hazards touch scores and lists.
 // ponytail: greedy clustering, O(n^2); use a grid index past ~5k reports.
 export const CONFIRM_AT = 3;
-export const FIXED_AT = 2;
+export const FIXED_AT = 5;
 export function clusterReports(reports) {
   const clusters = [];
   for (const r of [...reports].sort((x, y) => (x.ts || 0) - (y.ts || 0))) {
