@@ -588,6 +588,12 @@ def admin_boxes(request: Request):
     return _read_json(BOXES_FILE, {})
 
 
+@app.get("/api/photo-boxes")
+def public_photo_boxes():
+    """Boxes the admin drew on drivers' photos, so every user sees them on the hazard cards (geometry only)."""
+    return {k: {"category": v["category"], "boxes": v["boxes"]} for k, v in _read_json(BOXES_FILE, {}).items()}
+
+
 @app.post("/api/admin/boxes")
 def admin_boxes_set(b: PhotoBoxes, request: Request):
     email = require_admin(request)

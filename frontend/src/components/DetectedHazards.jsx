@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { MapPin, ImageOff, Trash2 } from 'lucide-react';
 import { useT } from '../services/i18n';
 import { frameAge, distM } from '../services/risk';
+import BoxedImage from './BoxedImage';
 
 // When the Street View image was taken; old images may no longer match the road
 function StreetViewAge({ ym }) {
@@ -73,8 +74,11 @@ export default function DetectedHazards({ hazards, onFocusHazard, focusedHazardI
             return (
               <div key={hazard.id} className={`hazard-card-item ${focusedHazardId === hazard.id ? 'hazard-card-focused' : ''}`}>
                 {/* Frame from Street View; the detector already drew the box */}
-                <div className="hazard-image-container">
-                  {hazard.imageUrl && <img
+                <div className="hazard-image-container" style={hazard.boxes?.length ? { height: 'auto', minHeight: 155 } : undefined}>
+                  {hazard.imageUrl && hazard.boxes?.length > 0 && (
+                    <BoxedImage src={hazard.imageUrl} boxes={hazard.boxes} alt={`${hazard.type} at ${hazard.locationOffsetKm} km`} />
+                  )}
+                  {hazard.imageUrl && !hazard.boxes?.length && <img
                     src={hazard.imageUrl}
                     alt={`${hazard.type} at ${hazard.locationOffsetKm} km`}
                     className="hazard-image-media"
@@ -98,6 +102,7 @@ export default function DetectedHazards({ hazards, onFocusHazard, focusedHazardI
                   </div>
 
                   {!hazard.crowd && hazard.capturedAt && <StreetViewAge ym={hazard.capturedAt} />}
+                  {hazard.boxes?.length > 0 && <div style={{ fontSize: '.8rem', opacity: 0.85 }}>🟩 Green box: marked by the admin</div>}
 
                   <dl className="hazard-meta-grid">
                     <div className="meta-cell"><dt>{hazard.crowd ? 'Source' : 'Confidence'}</dt><dd>{hazard.crowd ? `${hazard.sightings} users` : `${hazard.confidence}%`}</dd></div>
@@ -114,7 +119,7 @@ export default function DetectedHazards({ hazards, onFocusHazard, focusedHazardI
                   {!hazard.crowd && hazard.coords && onVoteRemove && (
                     <div style={{ marginTop: 6, display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
                       <button type="button" className="btn-secondary btn-sm" onClick={() => vote(hazard)}>
-                        👎 Vote: not a hazard ({tally(hazard)}/{NEEDED})
+                        👎 No obstacle here ({tally(hazard)}/{NEEDED})
                       </button>
                       {isAdmin && (
                         <button type="button" className="btn-secondary btn-sm"

@@ -1,7 +1,8 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Map, AdvancedMarker, AdvancedMarkerAnchorPoint, InfoWindow, Polyline, ControlPosition, useMap } from '@vis.gl/react-google-maps';
 import { ExternalLink } from 'lucide-react';
-import { clusterReports, CONFIRM_AT } from '../services/risk';
+import { clusterReports, CONFIRM_AT, boxesFor } from '../services/risk';
+import BoxedImage from './BoxedImage';
 import { useT } from '../services/i18n';
 
 const SEVERITY_COLOR = { High: '#ef4444', Medium: '#f59e0b', Low: '#10b981' };
@@ -260,7 +261,9 @@ export default function InteractiveMap({ routeData, focusedHazard, onSelectHazar
           {openCluster && (
             <InfoWindow position={{ lat: openCluster.lat, lng: openCluster.lng }} pixelOffset={[0, -30]} onCloseClick={() => setOpenId(null)}>
               <div className="map-popup-card">
-                {openCluster.photo && <img src={openCluster.photo} alt="" className="map-popup-image" onError={(e) => { e.target.style.display = 'none'; }} />}
+                {openCluster.photo && (boxesFor(openCluster.photo, reports.boxes).length
+                  ? <div style={{ marginBottom: 8 }}><BoxedImage src={openCluster.photo} boxes={boxesFor(openCluster.photo, reports.boxes)} /></div>
+                  : <img src={openCluster.photo} alt="" className="map-popup-image" onError={(e) => { e.target.style.display = 'none'; }} />)}
                 <strong>{openCluster.category === 'pothole' ? 'Pothole' : 'Speed breaker'} · reported by users</strong>
                 <div className="popup-meta">
                   {openCluster.confirmed ? t('vote.confirmed', { n: openCluster.count }) : t('vote.needed', { n: openCluster.count, k: CONFIRM_AT })}

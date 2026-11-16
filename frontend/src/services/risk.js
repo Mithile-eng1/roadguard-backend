@@ -71,7 +71,10 @@ export function frameAge(ym, now = Date.now()) {
 
 // Confirmed hazards within 50 m of a route become ordinary hazards (list, directions, counts, score),
 // unless the detector already found the same thing there.
-function crowdHazards(confirmed, line, found) {
+// the admin's drawn boxes for a report photo (photo URL ends in <report id>.jpg)
+export const boxesFor = (photo, all) => all?.[(photo || '').replace(/^.*\//, '').replace('.jpg', '')]?.boxes || [];
+
+function crowdHazards(confirmed, line, found, boxes) {
   return confirmed.flatMap((c) => {
     const { d, km } = alongRoute(line, [c.lat, c.lng]);
     if (d > 50 || found.some((h) => h.category === c.category && h.coords && distM(h.coords, [c.lat, c.lng]) <= 30)) return [];
@@ -80,7 +83,7 @@ function crowdHazards(confirmed, line, found) {
       type: c.category === 'pothole' ? 'Pothole' : 'Speed Breaker',
       severity: 'Medium', baseRisk: 55 + Math.min(20, (c.count - CONFIRM_AT) * 5),
       confidence: null, sightings: c.count, locationOffsetKm: Math.round(km * 10) / 10,
-      coords: [c.lat, c.lng], imageUrl: c.photo || null, notes: c.notes,
+      coords: [c.lat, c.lng], imageUrl: c.photo || null, boxes: boxesFor(c.photo, boxes), notes: c.notes,
       description: `Reported by ${c.count} different users.`,
     }];
   });
@@ -127,7 +130,7 @@ export function buildRouteView(analysis, activeRouteIndex, vehicle, reports = []
     const own = (alt.hazards || []).filter((h) => !wrong(h)); // admin-removed detections never count
     const kept = own.filter((h) => !outranked(h));
     return {
-      list: [...kept, ...crowdHazards(confirmed, alt.polyline || [], kept)].sort((x, y) => x.locationOffsetKm - y.locationOffsetKm),
+      list: [...kept, ...crowdHazards(confirmed, alt.polyline || [], kept, reports.boxes)].sort((x, y) => x.locationOffsetKm - y.locationOffsetKm),
       hidden: own.length - kept.length,
     };
   };

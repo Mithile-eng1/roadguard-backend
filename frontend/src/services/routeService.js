@@ -39,9 +39,9 @@ export async function fetchReports(backendUrl = '') {
   const base = backendUrl.replace(/\/$/, '');
   try {
     const soft = (path) => fetch(`${base}${path}`).then((r) => (r.ok ? r.json() : [])).catch(() => []);
-    const [list, removed, votes] = await Promise.all([readJson(await fetch(`${base}/api/reports`)), soft('/api/removed-detections'), soft('/api/removal-votes')]);
+    const [list, removed, votes, boxes] = await Promise.all([readJson(await fetch(`${base}/api/reports`)), soft('/api/removed-detections'), soft('/api/removal-votes'), soft('/api/photo-boxes')]);
     // photos are served by the backend; `removed` = detections an admin marked wrong (buildRouteView skips them)
-    return Object.assign(list.map((r) => (r.photo ? { ...r, photo: base + r.photo } : r)), { removed, votes });
+    return Object.assign(list.map((r) => (r.photo ? { ...r, photo: base + r.photo } : r)), { removed, votes, boxes: Array.isArray(boxes) ? {} : boxes });
   } catch { return []; }
 }
 
